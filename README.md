@@ -6,16 +6,23 @@ Manage your professional profile via JSON and get a high-quality LaTeX resume PD
 
 ## Features
 
+- **Local Web UI**: A minimalist, built-in Customizer UI lets you edit JSON data effortlessly and preview the PDF in real-time.
+- **AI-Tailored Resumes**: Fully interoperable with AI agents. Use the [`resume-builder-tailor`](https://github.com/jangwanAnkit/skills/tree/main/resume-builder-tailor) AI skill to completely rewrite your experience data to target specific job descriptions.
 - **JSON-based Source of Truth**: Manage all your data (profile, experience, education, skills, projects) in structured JSON files.
 - **LaTeX Professionalism**: Utilizes a professional LaTeX template with Jinja2 rendering for a premium look.
 - **Automated Workflow**: GitHub Actions automatically compiles your LaTeX source into a PDF on every push to `main`.
 
 ## Setup
+To use the Local Web UI and compile PDFs on your machine:
 
-1.  **Use as Template / Fork**: Click the **"Use this template"** button at the top of the repository (or simply **Fork** it) to create your own copy.
-2.  **Install Dependencies** (for local testing):
+1.  **Use as Template / Fork**: Click the **"Use this template"** button to create your own copy.
+2.  **Install Dependencies** (for local UI Backend):
     ```bash
     pip install -r requirements.txt
+    ```
+3.  **Install TeX Live** (to compile LaTeX locally):
+    ```bash
+    sudo apt install texlive-latex-base texlive-fonts-extra texlive-latex-extra
     ```
 
 ## Usage
@@ -23,14 +30,16 @@ Manage your professional profile via JSON and get a high-quality LaTeX resume PD
 ### 1. Update Data (Recommended: Local Web UI)
 Instead of editing JSON manually, you can use the built-in **Resume Customizer UI** to edit your data and preview the generated resume in real-time. The UI features a clean, minimal black-and-white design.
 
+![Resume Customizer UI](docs/pdf_preview_final.png)
+
 1. Install backend dependencies (FastAPI, Uvicorn, Jinja2):
    ```bash
-   pip install -r requirements.txt
+   uv pip install -r requirements.txt
    ```
 2. Make sure you have `pdflatex` installed (e.g., `sudo apt install texlive-latex-base texlive-fonts-extra texlive-latex-extra`).
 3. Start the customizer server:
    ```bash
-   python customizer/server.py
+   uv run python customizer/server.py
    ```
 4. Open [http://localhost:8000](http://localhost:8000) in your browser.
 5. Use the UI to edit your profile, experience, education, and projects.

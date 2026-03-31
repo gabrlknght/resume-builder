@@ -24,7 +24,6 @@
 <div class="layout">
     <nav class="sidebar" id="sidebar">
         <button class="active" data-tab="profile">PROFILE</button>
-        <button data-tab="contact">CONTACT</button>
         <button data-tab="education">EDUCATION</button>
         <button data-tab="experience">EXPERIENCE</button>
         <button data-tab="projects">PROJECTS</button>
@@ -55,6 +54,10 @@
 
             <div class="field-group">
                 <div class="field-group-title">RESUME CONTACT</div>
+                <div class="field">
+                    <label for="contact-email">EMAIL</label>
+                    <input type="email" id="contact-email" data-path="contact.email">
+                </div>
                 <div class="field-row">
                     <div class="field">
                         <label for="profile-phone">PHONE</label>
@@ -65,15 +68,6 @@
                         <input type="text" id="profile-website" data-path="profile.resume.website">
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- ============ CONTACT ============ -->
-        <div class="section" id="section-contact">
-            <h2 class="section-title">CONTACT</h2>
-            <div class="field">
-                <label for="contact-email">EMAIL</label>
-                <input type="email" id="contact-email" data-path="contact.email">
             </div>
         </div>
 
