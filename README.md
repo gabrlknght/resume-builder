@@ -20,8 +20,24 @@ Manage your professional profile via JSON and get a high-quality LaTeX resume PD
 
 ## Usage
 
-### 1. Update Data
-Edit the JSON files in the `data/` directory. The structure is intuitive and keeps your data clean:
+### 1. Update Data (Recommended: Local Web UI)
+Instead of editing JSON manually, you can use the built-in **Resume Customizer UI** to edit your data and preview the generated resume in real-time. The UI features a clean, minimal black-and-white design.
+
+1. Install backend dependencies (FastAPI, Uvicorn, Jinja2):
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Make sure you have `pdflatex` installed (e.g., `sudo apt install texlive-latex-base texlive-fonts-extra texlive-latex-extra`).
+3. Start the customizer server:
+   ```bash
+   python customizer/server.py
+   ```
+4. Open [http://localhost:8000](http://localhost:8000) in your browser.
+5. Use the UI to edit your profile, experience, education, and projects.
+6. Click **Generate** to preview the PDF inline, and **Save to Backend** to write changes back to the JSON files in `data/`.
+
+### 2. Manual JSON Editing
+If you prefer, you can manually edit the JSON files in the `data/` directory. The structure is intuitive and keeps your data clean:
 - `profile.json`: Name, title, bio, and social links.
 - `experience.json`: Professional work history.
 - `education.json`: Academic background.
@@ -29,18 +45,12 @@ Edit the JSON files in the `data/` directory. The structure is intuitive and kee
 - `projects.json`: Highlighted projects.
 - `contact.json`: Contact information and location.
 
-### 2. Generate LaTeX (Local)
-To preview the generated LaTeX code:
+### 3. Generate LaTeX (Local Command Line)
+To preview the generated LaTeX code manually in the terminal:
 ```bash
 python scripts/render_resume.py
+pdflatex resume.tex
 ```
-
-### 3. Compile to PDF
-- **Automatic**: Simply push your changes to GitHub. The workflow will trigger automatically.
-- **Local (Optional)**: If you have a LaTeX distribution (like TeX Live) installed:
-  ```bash
-  pdflatex resume.tex
-  ```
 
 ## Accessing your PDF
 Once you push your code to GitHub, the **CI/CD pipeline** kicks in. You can access your generated PDF by:
