@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RESUME CUSTOMIZER</title>
+    <meta name="description" content="Edit resume JSON data and generate PDF">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+</head>
+<body>
+
+<header class="header">
+    <h1>RESUME CUSTOMIZER</h1>
+    <div class="header-actions">
+        <button type="button" class="btn-secondary" id="btn-save" onclick="saveToBackend()">SAVE TO BACKEND</button>
+        <button type="button" id="btn-generate" onclick="generatePDF()">GENERATE</button>
+    </div>
+</header>
+
+<div class="layout">
+    <nav class="sidebar" id="sidebar">
+        <button class="active" data-tab="profile">PROFILE</button>
+        <button data-tab="contact">CONTACT</button>
+        <button data-tab="education">EDUCATION</button>
+        <button data-tab="experience">EXPERIENCE</button>
+        <button data-tab="projects">PROJECTS</button>
+    </nav>
+
+    <main class="editor-pane" id="form-root">
+
+        <!-- ============ PROFILE ============ -->
+        <div class="section active" id="section-profile">
+            <h2 class="section-title">PROFILE</h2>
+            <div class="field">
+                <label for="profile-name">NAME</label>
+                <input type="text" id="profile-name" data-path="profile.name">
+            </div>
+            <div class="field-group">
+                <div class="field-group-title">SOCIALS</div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="profile-github">GITHUB</label>
+                        <input type="text" id="profile-github" data-path="profile.socials.github">
+                    </div>
+                    <div class="field">
+                        <label for="profile-linkedin">LINKEDIN</label>
+                        <input type="text" id="profile-linkedin" data-path="profile.socials.linkedin">
+                    </div>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <div class="field-group-title">RESUME CONTACT</div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="profile-phone">PHONE</label>
+                        <input type="text" id="profile-phone" data-path="profile.resume.phone">
+                    </div>
+                    <div class="field">
+                        <label for="profile-website">WEBSITE</label>
+                        <input type="text" id="profile-website" data-path="profile.resume.website">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ CONTACT ============ -->
+        <div class="section" id="section-contact">
+            <h2 class="section-title">CONTACT</h2>
+            <div class="field">
+                <label for="contact-email">EMAIL</label>
+                <input type="email" id="contact-email" data-path="contact.email">
+            </div>
+        </div>
+
+        <!-- ============ EDUCATION ============ -->
+        <div class="section" id="section-education">
+            <h2 class="section-title">EDUCATION</h2>
+            <div id="education-list"></div>
+            <div class="array-controls">
+                <button type="button" class="btn-secondary btn-small" onclick="addEducation()">+ ADD</button>
+            </div>
+        </div>
+
+        <!-- ============ EXPERIENCE ============ -->
+        <div class="section" id="section-experience">
+            <h2 class="section-title">EXPERIENCE</h2>
+            <div id="experience-list"></div>
+            <div class="array-controls">
+                <button type="button" class="btn-secondary btn-small" onclick="addExperience()">+ ADD</button>
+            </div>
+        </div>
+
+        <!-- ============ PROJECTS ============ -->
+        <div class="section" id="section-projects">
+            <h2 class="section-title">PROJECTS</h2>
+            <div id="projects-list"></div>
+            <div class="array-controls">
+                <button type="button" class="btn-secondary btn-small" onclick="addProject()">+ ADD</button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ============ PDF PREVIEW ============ -->
+    <aside class="preview-pane" id="preview-pane">
+        <div class="preview-header">
+            <span>PREVIEW</span>
+            <div class="page-nav" id="page-nav" style="display:none">
+                <button type="button" class="btn-small" id="btn-prev-page" onclick="prevPage()">‹</button>
+                <span id="page-indicator">1 / 1</span>
+                <button type="button" class="btn-small" id="btn-next-page" onclick="nextPage()">›</button>
+                <button type="button" class="btn-secondary btn-small" id="btn-download" onclick="downloadPDF()">DOWNLOAD</button>
+            </div>
+        </div>
+        <div class="preview-body" id="preview-body">
+            <div class="preview-empty" id="preview-empty">CLICK GENERATE TO PREVIEW</div>
+        </div>
+    </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    window.__DATA__ = {{ data_json | safe }};
+</script>
+<script src="/static/app.js"></script>
+
+</body>
+</html>
