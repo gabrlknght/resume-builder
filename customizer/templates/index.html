@@ -140,6 +140,12 @@
             </div>
             <div class="array-controls">
                 <button type="button" class="btn-secondary" id="btn-tailor" onclick="tailorResume()" style="width: 100%; margin-top: 1rem;">TAILOR RESUME (AI)</button>
+                <div id="tailor-progress" style="display: none; margin: 0.5rem 0;">
+                    <div style="background: var(--border); border-radius: 4px; height: 4px; overflow: hidden;">
+                        <div id="progress-bar-fill" style="background: var(--fg); height: 100%; width: 0; transition: width 0.3s;"></div>
+                    </div>
+                    <div id="progress-text" style="font-size: 11px; color: var(--muted); margin-top: 0.25rem;"></div>
+                </div>
             </div>
         </div>
 
