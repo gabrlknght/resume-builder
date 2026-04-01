@@ -210,7 +210,7 @@ async def tailor(request: Request):
     """
     import os
 
-    from customizer.pipeline import get_instructor_client, run_pipeline, sse_event
+    from pipeline import get_instructor_client, run_pipeline, sse_event
 
     payload = await request.json()
     jd = payload.get("jd", "")

@@ -23,7 +23,7 @@ from typing import Optional
 
 import instructor
 import openai
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 # ---------------------------------------------------------------------------
 # Eval-module imports
@@ -71,12 +71,31 @@ def get_instructor_client(config: dict):
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
+
+
+def _parse_if_json_string(v):
+    """If v is a JSON-encoded string, parse it into a Python object.
+
+    Smaller LLMs (e.g. llama3.1-8b) sometimes serialize list/dict fields
+    as JSON strings inside tool-call arguments.  This validator catches
+    that and converts the string back into the expected type before
+    Pydantic validates the inner schema.
+    """
+    if isinstance(v, str):
+        # Handle LLM returning literal "null" string
+        if v.strip().lower() == "null":
+            return None
+        try:
+            return json.loads(v)
+        except (json.JSONDecodeError, ValueError):
+            return v
+    return v
+
+
 class JDRequirement(BaseModel):
     skill: str
-    category: (
-        str  # "technical", "soft_skill", "domain", "certification", "experience_years"
-    )
-    priority: str  # "must_have", "nice_to_have", "bonus"
+    category: str
+    priority: str
     context: str
 
 
@@ -88,6 +107,20 @@ class JDAnalysis(BaseModel):
     requirements: list[JDRequirement]
     key_responsibilities: list[str]
     ats_keywords: list[str]
+
+    @field_validator(
+        "requirements", "key_responsibilities", "ats_keywords", mode="before"
+    )
+    @classmethod
+    def _parse_json_lists(cls, v):
+        return _parse_if_json_string(v)
+
+    @field_validator("company_name", mode="before")
+    @classmethod
+    def _parse_company_name(cls, v):
+        if isinstance(v, str) and v.strip().lower() == "null":
+            return None
+        return v
 
 
 class MatchReport(BaseModel):
@@ -107,6 +140,11 @@ class TailoredProfile(BaseModel):
     socials: Optional[dict] = None
     resume: Optional[dict] = None
 
+    @field_validator("socials", "resume", mode="before")
+    @classmethod
+    def _parse_json_dicts(cls, v):
+        return _parse_if_json_string(v)
+
 
 class TailoredExperienceEntry(BaseModel):
     company: str
@@ -117,9 +155,19 @@ class TailoredExperienceEntry(BaseModel):
     logo: Optional[str] = None
     details: list[str]
 
+    @field_validator("details", mode="before")
+    @classmethod
+    def _parse_json_list(cls, v):
+        return _parse_if_json_string(v)
+
 
 class ExperienceList(BaseModel):
     experience: list[TailoredExperienceEntry]
+
+    @field_validator("experience", mode="before")
+    @classmethod
+    def _parse_json_list(cls, v):
+        return _parse_if_json_string(v)
 
 
 class TailoredProjectEntry(BaseModel):
@@ -130,9 +178,19 @@ class TailoredProjectEntry(BaseModel):
     liveUrl: Optional[str] = None
     status: Optional[str] = None
 
+    @field_validator("technologies", mode="before")
+    @classmethod
+    def _parse_json_list(cls, v):
+        return _parse_if_json_string(v)
+
 
 class ProjectList(BaseModel):
     projects: list[TailoredProjectEntry]
+
+    @field_validator("projects", mode="before")
+    @classmethod
+    def _parse_json_list(cls, v):
+        return _parse_if_json_string(v)
 
 
 # ---------------------------------------------------------------------------
@@ -410,87 +468,118 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict):
     try:
         yield sse_event(
             {
-                "stage": "analysis",
-                "status": "started",
+                "stage": 1,
+                "status": "in_progress",
                 "message": "Analyzing job description...",
             }
         )
         jd_analysis = await analyze_jd(client, jd_text, model)
         yield sse_event(
             {
-                "stage": "analysis",
-                "status": "completed",
-                "data": jd_analysis.model_dump(),
-                "message": f"Found {len(jd_analysis.requirements)} requirements",
+                "stage": 1,
+                "status": "complete",
+                "data": {
+                    "job_title": jd_analysis.job_title,
+                    "requirements_count": len(jd_analysis.requirements),
+                    "ats_keywords": jd_analysis.ats_keywords[:10],
+                },
             }
         )
 
         yield sse_event(
             {
-                "stage": "match",
-                "status": "started",
-                "message": "Computing match score...",
+                "stage": 2,
+                "status": "in_progress",
+                "message": "Matching resume to requirements...",
             }
         )
         match_report = compute_match_score(resume_data, jd_analysis)
         yield sse_event(
             {
-                "stage": "match",
-                "status": "completed",
-                "data": match_report.model_dump(),
-                "message": f"Relevance: {match_report.relevance_score}/10 ({match_report.recommendation})",
+                "stage": 2,
+                "status": "complete",
+                "data": {
+                    "relevance": match_report.relevance_score,
+                    "matched": len(match_report.matched_keywords),
+                    "gaps": len(match_report.gap_keywords),
+                    "recommendation": match_report.recommendation,
+                },
             }
         )
 
         if match_report.relevance_score <= 2:
             yield sse_event(
                 {
-                    "stage": "abort",
-                    "status": "skipped",
-                    "message": f"Resume relevance too low ({match_report.relevance_score}/10). Skipping tailoring.",
+                    "stage": "final",
+                    "status": "skip",
+                    "data": {
+                        "profile": resume_data.get("profile", {}),
+                        "experience": resume_data.get("experience", {}),
+                        "projects": resume_data.get("projects", {}),
+                        "relevance": match_report.relevance_score,
+                        "relevance_analysis": (
+                            f"Very low match ({match_report.relevance_score}/10). "
+                            f"Missing: {', '.join(match_report.gap_keywords[:5])}"
+                        ),
+                        "eval_scores": {
+                            "overall_pass": False,
+                            "recommendation": "skip",
+                        },
+                    },
                 }
             )
             return
 
         yield sse_event(
             {
-                "stage": "tailor",
-                "status": "started",
+                "stage": 3,
+                "status": "in_progress",
                 "message": "Tailoring resume sections...",
             }
         )
         profile, experience, projects = await tailor_all_sections(
             client, resume_data, jd_analysis, model
         )
-        yield sse_event(
-            {
-                "stage": "tailor",
-                "status": "completed",
-                "message": "All sections tailored successfully",
-            }
-        )
+        yield sse_event({"stage": 3, "status": "complete"})
 
         yield sse_event(
             {
-                "stage": "validate",
-                "status": "started",
-                "message": "Validating and assembling...",
+                "stage": 4,
+                "status": "in_progress",
+                "message": "Validating output...",
             }
         )
         final = validate_and_assemble(
             resume_data, profile, experience, projects, jd_text
         )
-        yield sse_event(
-            {
-                "stage": "validate",
-                "status": "completed",
-                "data": final,
-                "message": "Pipeline complete",
-            }
+
+        final["relevance"] = match_report.relevance_score
+        final["relevance_analysis"] = (
+            f"Match: {match_report.relevance_score}/10. "
+            f"Matched: {', '.join(match_report.matched_keywords[:8])}. "
+            f"Gaps: {', '.join(match_report.gap_keywords[:5])}."
         )
+        final["jd_analysis"] = {
+            "job_title": jd_analysis.job_title,
+            "requirements_count": len(jd_analysis.requirements),
+            "ats_keywords": jd_analysis.ats_keywords,
+        }
+
+        yield sse_event({"stage": 4, "status": "complete"})
+        yield sse_event({"stage": "final", "status": "complete", "data": final})
 
     except Exception as e:
         import traceback
 
         traceback.print_exc()
-        yield sse_event({"stage": "error", "status": "failed", "message": str(e)})
+        # Extract a clean error message
+        msg = str(e)
+        if "InstructorRetryException" in type(e).__name__ or "<failed_attempts>" in msg:
+            # Get the root cause from the last exception in the retry chain
+            cause = e.__cause__
+            if cause:
+                msg = str(cause)
+            else:
+                # Strip XML-ish tags from instructor error
+                msg = re.sub(r"<[^>]+>", " ", msg).strip()[:500]
+        yield sse_event({"status": "error", "message": msg})
