@@ -12,6 +12,8 @@ const state = JSON.parse(JSON.stringify(window.__DATA__));
 // Staged review state for AI tailoring
 let originalSnapshot = null;   // pre-tailoring state for Reset
 let pendingTailored = null;    // AI results awaiting user approval
+let currentPreviewTab = "pdf"; // "pdf" or "ai"
+let lastAiResultsHTML = "";    // persisted AI results HTML
 
 // PDF preview state
 let pdfBlob = null;
@@ -44,6 +46,36 @@ function initTabs() {
             document.getElementById("section-" + btn.dataset.tab).classList.add("active");
         });
     });
+}
+
+function switchPreviewTab(tab) {
+    currentPreviewTab = tab;
+    const tabPdf = document.getElementById("tab-pdf");
+    const tabAi = document.getElementById("tab-ai");
+    const pageNav = document.getElementById("page-nav");
+
+    if (tab === "pdf") {
+        tabPdf.classList.add("active");
+        tabAi.classList.remove("active");
+        if (pdfBlob) {
+            renderPDFPreview(pdfBlob);
+        } else {
+            const body = document.getElementById("preview-body");
+            body.innerHTML = `<div class="preview-empty" id="preview-empty">CLICK GENERATE TO PREVIEW</div>`;
+            if (pageNav) pageNav.style.display = "none";
+        }
+    } else {
+        tabPdf.classList.remove("active");
+        tabAi.classList.add("active");
+        if (pageNav) pageNav.style.display = "none";
+        const body = document.getElementById("preview-body");
+        body.innerHTML = lastAiResultsHTML;
+    }
+}
+
+function showPreviewTabs() {
+    const tabsBar = document.getElementById("preview-tabs");
+    if (tabsBar) tabsBar.style.display = "flex";
 }
 
 function initAITailoring() {
@@ -577,12 +609,8 @@ function handlePipelineEvent(event) {
 
 function applyTailoredData(data, isSkip) {
     if (isSkip) {
-        // Skip case: just show the analysis, no changes to apply
-        const previewBody = document.getElementById("preview-body");
-        const pageNav = document.getElementById("page-nav");
-        if (pageNav) pageNav.style.display = "none";
         const relScore = data.relevance || 'N/A';
-        previewBody.innerHTML = `
+        lastAiResultsHTML = `
             <div style="width:100%; text-align:left;">
                 <div style="font-size:11px; text-transform:uppercase; margin-bottom:0.5rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
                     <span style="color:var(--fg); font-weight:bold;">AI TAILORING — SKIPPED (LOW MATCH)</span>
@@ -590,6 +618,8 @@ function applyTailoredData(data, isSkip) {
                 </div>
                 ${data.relevance_analysis ? `<div style="font-size:11px; color:var(--muted); line-height:1.6;">${esc(data.relevance_analysis)}</div>` : ''}
             </div>`;
+        showPreviewTabs();
+        switchPreviewTab("ai");
         return;
     }
 
@@ -614,10 +644,6 @@ function applyTailoredData(data, isSkip) {
     } else {
         diffHtml = `<span style="color: #f1c40f">Diff library failed to load.</span>`;
     }
-
-    const previewBody = document.getElementById("preview-body");
-    const pageNav = document.getElementById("page-nav");
-    if (pageNav) pageNav.style.display = "none";
 
     const relScore = data.relevance || 'N/A';
     const relColor = typeof relScore === 'number' && relScore >= 7 ? '#2ecc71' : typeof relScore === 'number' && relScore >= 4 ? '#f1c40f' : '#e74c3c';
@@ -650,7 +676,8 @@ function applyTailoredData(data, isSkip) {
         </div>`;
     }
 
-    previewBody.innerHTML = `
+    const hasPending = pendingTailored !== null;
+    lastAiResultsHTML = `
         <div style="width: 100%; height: 100%; display: flex; flex-direction: column; text-align: left;">
             <div style="font-size: 11px; text-transform: uppercase; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <span style="color: var(--fg); font-weight: bold;">AI TAILORING RESULTS — REVIEW BEFORE APPLYING</span>
@@ -659,13 +686,18 @@ function applyTailoredData(data, isSkip) {
             ${data.relevance_analysis ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border); line-height: 1.6;">${esc(data.relevance_analysis)}</div>` : ''}
             ${evalHtml}
             <div style="font-size: 11px; text-transform: uppercase; color: var(--fg); margin-bottom: 0.5rem;">DIFF CHANGES:</div>
-            <pre style="flex: 1; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #0a0a0a; padding: 0.5rem; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border);">${diffHtml}</pre>
-            <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
-                <button onclick="applyPendingChanges()" style="flex: 1; padding: 8px; background: #2ecc71; color: #000; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: bold; text-transform: uppercase;">Apply Changes</button>
-                <button onclick="discardPendingChanges()" style="flex: 1; padding: 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;">Discard</button>
-                <button onclick="resetToOriginal()" style="padding: 8px 12px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;" ${!originalSnapshot ? 'disabled' : ''}>Reset</button>
+            <div style="position: relative; flex: 1; overflow-y: auto; min-height: 0;">
+                <pre style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #0a0a0a; padding: 0.5rem; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border); margin: 0;">${diffHtml}</pre>
+                <div style="position: sticky; bottom: 0; display: flex; gap: 8px; padding: 8px; background: linear-gradient(transparent, var(--bg) 30%); margin-top: -2rem;">
+                    <button onclick="applyPendingChanges()" style="flex: 1; padding: 8px; background: #2ecc71; color: #000; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: bold; text-transform: uppercase;">Apply Changes</button>
+                    <button onclick="discardPendingChanges()" style="flex: 1; padding: 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;">Discard</button>
+                    <button onclick="resetToOriginal()" style="padding: 8px 12px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;" ${!originalSnapshot ? 'disabled' : ''}>Reset</button>
+                </div>
             </div>
         </div>`;
+
+    showPreviewTabs();
+    switchPreviewTab("ai");
 }
 
 function applyPendingChanges() {
@@ -678,13 +710,13 @@ function applyPendingChanges() {
     populateScalarFields();
     renderExperience();
     renderProjects();
-    generatePreview();
+    generatePDF().then(() => switchPreviewTab("pdf"));
     toast("Changes applied to form fields.");
 }
 
 function discardPendingChanges() {
     pendingTailored = null;
-    generatePreview();
+    switchPreviewTab("pdf");
     toast("AI changes discarded.");
 }
 
@@ -699,7 +731,7 @@ function resetToOriginal() {
     populateScalarFields();
     renderExperience();
     renderProjects();
-    generatePreview();
+    generatePDF().then(() => switchPreviewTab("pdf"));
     toast("Reset to pre-tailoring state.");
 }
 

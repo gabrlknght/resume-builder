@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,168 +13,181 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/7.0.0/diff.min.js"></script>
 </head>
+
 <body>
 
-<header class="header">
-    <h1>RESUME CUSTOMIZER</h1>
-    <div class="header-actions">
-        <button type="button" class="btn-secondary" id="btn-save" onclick="saveToBackend()">SAVE TO BACKEND</button>
-        <button type="button" id="btn-generate" onclick="generatePDF()">GENERATE</button>
-    </div>
-</header>
+    <header class="header">
+        <h1>RESUME CUSTOMIZER</h1>
+        <div class="header-actions">
+            <button type="button" class="btn-secondary" id="btn-save" onclick="saveToBackend()">SAVE TO BACKEND</button>
+            <button type="button" id="btn-generate" onclick="generatePDF()">GENERATE</button>
+        </div>
+    </header>
 
-<div class="layout">
-    <nav class="sidebar" id="sidebar">
-        <button class="active" data-tab="profile">PROFILE</button>
-        <button data-tab="education">EDUCATION</button>
-        <button data-tab="experience">EXPERIENCE</button>
-        <button data-tab="projects">PROJECTS</button>
-        <button data-tab="tailoring">TAILOR</button>
-    </nav>
+    <div class="layout">
+        <nav class="sidebar" id="sidebar">
+            <button class="active" data-tab="profile">PROFILE</button>
+            <button data-tab="education">EDUCATION</button>
+            <button data-tab="experience">EXPERIENCE</button>
+            <button data-tab="projects">PROJECTS</button>
+            <button data-tab="tailoring">TAILOR</button>
+        </nav>
 
-    <main class="editor-pane" id="form-root">
+        <main class="editor-pane" id="form-root">
 
-        <!-- ============ PROFILE ============ -->
-        <div class="section active" id="section-profile">
-            <h2 class="section-title">PROFILE</h2>
-            <div class="field">
-                <label for="profile-name">NAME</label>
-                <input type="text" id="profile-name" data-path="profile.name">
-            </div>
-            <div class="field-group">
-                <div class="field-group-title">SOCIALS</div>
-                <div class="field-row">
-                    <div class="field">
-                        <label for="profile-github">GITHUB</label>
-                        <input type="text" id="profile-github" data-path="profile.socials.github">
-                    </div>
-                    <div class="field">
-                        <label for="profile-linkedin">LINKEDIN</label>
-                        <input type="text" id="profile-linkedin" data-path="profile.socials.linkedin">
-                    </div>
-                </div>
-            </div>
-
-            <div class="field-group">
-                <div class="field-group-title">RESUME CONTACT</div>
+            <!-- ============ PROFILE ============ -->
+            <div class="section active" id="section-profile">
+                <h2 class="section-title">PROFILE</h2>
                 <div class="field">
-                    <label for="contact-email">EMAIL</label>
-                    <input type="email" id="contact-email" data-path="contact.email">
+                    <label for="profile-name">NAME</label>
+                    <input type="text" id="profile-name" data-path="profile.name">
                 </div>
-                <div class="field-row">
-                    <div class="field">
-                        <label for="profile-phone">PHONE</label>
-                        <input type="text" id="profile-phone" data-path="profile.resume.phone">
-                    </div>
-                    <div class="field">
-                        <label for="profile-website">WEBSITE</label>
-                        <input type="text" id="profile-website" data-path="profile.resume.website">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============ EDUCATION ============ -->
-        <div class="section" id="section-education">
-            <h2 class="section-title">EDUCATION</h2>
-            <div id="education-list"></div>
-            <div class="array-controls">
-                <button type="button" class="btn-secondary btn-small" onclick="addEducation()">+ ADD</button>
-            </div>
-        </div>
-
-        <!-- ============ EXPERIENCE ============ -->
-        <div class="section" id="section-experience">
-            <h2 class="section-title">EXPERIENCE</h2>
-            <div id="experience-list"></div>
-            <div class="array-controls">
-                <button type="button" class="btn-secondary btn-small" onclick="addExperience()">+ ADD</button>
-            </div>
-        </div>
-
-        <!-- ============ PROJECTS ============ -->
-        <div class="section" id="section-projects">
-            <h2 class="section-title">PROJECTS</h2>
-            <div id="projects-list"></div>
-            <div class="array-controls">
-                <button type="button" class="btn-secondary btn-small" onclick="addProject()">+ ADD</button>
-            </div>
-        </div>
-
-        <!-- ============ TAILORING ============ -->
-        <div class="section" id="section-tailoring">
-            <h2 class="section-title">AI TAILORING</h2>
-            <div class="field">
-                <label for="ai-jd">JOB DESCRIPTION</label>
-                <textarea id="ai-jd" placeholder="Paste the job description here..." style="min-height: 150px;"></textarea>
-            </div>
-            <div class="field-group">
-                <div class="field-group-title">LLM CONFIGURATION (BYOK)</div>
-                <div class="field-row">
-                    <div class="field">
-                        <label for="ai-provider">PROVIDER</label>
-                        <select id="ai-provider">
-                            <option value="openai">OpenAI (Default)</option>
-                            <option value="cerebras">Cerebras</option>
-                            <option value="nvidia">Nvidia</option>
-                            <option value="gemini">Gemini API</option>
-                            <option value="openrouter">OpenRouter (Free)</option>
-                            <option value="openrouter_meta">OpenRouter (Meta Llama)</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label for="ai-model">MODEL</label>
-                        <input type="text" id="ai-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini">
+                <div class="field-group">
+                    <div class="field-group-title">SOCIALS</div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="profile-github">GITHUB</label>
+                            <input type="text" id="profile-github" data-path="profile.socials.github">
+                        </div>
+                        <div class="field">
+                            <label for="profile-linkedin">LINKEDIN</label>
+                            <input type="text" id="profile-linkedin" data-path="profile.socials.linkedin">
+                        </div>
                     </div>
                 </div>
-                <div class="field-row">
+
+                <div class="field-group">
+                    <div class="field-group-title">RESUME CONTACT</div>
                     <div class="field">
-                        <label for="ai-base-url">BASE URL (OPTIONAL)</label>
-                        <input type="text" id="ai-base-url" placeholder="Leave empty for provider default">
+                        <label for="contact-email">EMAIL</label>
+                        <input type="email" id="contact-email" data-path="contact.email">
                     </div>
-                    <div class="field">
-                        <label for="ai-api-key">API KEY (OPTIONAL)</label>
-                        <input type="password" id="ai-api-key" placeholder="Overrides .env">
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="profile-phone">PHONE</label>
+                            <input type="text" id="profile-phone" data-path="profile.resume.phone">
+                        </div>
+                        <div class="field">
+                            <label for="profile-website">WEBSITE</label>
+                            <input type="text" id="profile-website" data-path="profile.resume.website">
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="array-controls">
-                <button type="button" class="btn-secondary" id="btn-tailor" onclick="tailorResume()" style="width: 100%; margin-top: 1rem;">TAILOR RESUME (AI)</button>
-                <div id="tailor-progress" style="display: none; margin: 0.5rem 0;">
-                    <div style="background: var(--border); border-radius: 4px; height: 4px; overflow: hidden;">
-                        <div id="progress-bar-fill" style="background: var(--fg); height: 100%; width: 0; transition: width 0.3s;"></div>
-                    </div>
-                    <div id="progress-text" style="font-size: 11px; color: var(--muted); margin-top: 0.25rem;"></div>
+
+            <!-- ============ EDUCATION ============ -->
+            <div class="section" id="section-education">
+                <h2 class="section-title">EDUCATION</h2>
+                <div id="education-list"></div>
+                <div class="array-controls">
+                    <button type="button" class="btn-secondary btn-small" onclick="addEducation()">+ ADD</button>
                 </div>
             </div>
-        </div>
 
-    </main>
-
-    <!-- ============ PDF PREVIEW ============ -->
-    <aside class="preview-pane" id="preview-pane">
-        <div class="preview-header">
-            <span>PREVIEW</span>
-            <div class="page-nav" id="page-nav" style="display:none">
-                <button type="button" class="btn-small" id="btn-prev-page" onclick="prevPage()">‹</button>
-                <span id="page-indicator">1 / 1</span>
-                <button type="button" class="btn-small" id="btn-next-page" onclick="nextPage()">›</button>
-                <button type="button" class="btn-secondary btn-small" id="btn-download" onclick="downloadPDF()">DOWNLOAD</button>
+            <!-- ============ EXPERIENCE ============ -->
+            <div class="section" id="section-experience">
+                <h2 class="section-title">EXPERIENCE</h2>
+                <div id="experience-list"></div>
+                <div class="array-controls">
+                    <button type="button" class="btn-secondary btn-small" onclick="addExperience()">+ ADD</button>
+                </div>
             </div>
-        </div>
-        <div class="preview-body" id="preview-body">
-            <div class="preview-empty" id="preview-empty">CLICK GENERATE TO PREVIEW</div>
-        </div>
-    </aside>
-</div>
 
-<div class="toast" id="toast"></div>
+            <!-- ============ PROJECTS ============ -->
+            <div class="section" id="section-projects">
+                <h2 class="section-title">PROJECTS</h2>
+                <div id="projects-list"></div>
+                <div class="array-controls">
+                    <button type="button" class="btn-secondary btn-small" onclick="addProject()">+ ADD</button>
+                </div>
+            </div>
 
-<script>
-    window.__DATA__ = {{ data_json | safe }};
-</script>
-<script src="/static/app.js"></script>
+            <!-- ============ TAILORING ============ -->
+            <div class="section" id="section-tailoring">
+                <h2 class="section-title">AI TAILORING</h2>
+                <div class="field">
+                    <label for="ai-jd">JOB DESCRIPTION</label>
+                    <textarea id="ai-jd" placeholder="Paste the job description here..."
+                        style="min-height: 150px;"></textarea>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">LLM CONFIGURATION (BYOK)</div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="ai-provider">PROVIDER</label>
+                            <select id="ai-provider">
+                                <option value="openai">OpenAI (Default)</option>
+                                <option value="cerebras">Cerebras</option>
+                                <option value="nvidia">Nvidia</option>
+                                <option value="gemini">Gemini API</option>
+                                <option value="openrouter">OpenRouter (Free)</option>
+                                <option value="openrouter_meta">OpenRouter (Meta Llama)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="ai-model">MODEL</label>
+                            <input type="text" id="ai-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini">
+                        </div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="ai-base-url">BASE URL (OPTIONAL)</label>
+                            <input type="text" id="ai-base-url" placeholder="Leave empty for provider default">
+                        </div>
+                        <div class="field">
+                            <label for="ai-api-key">API KEY (OPTIONAL)</label>
+                            <input type="password" id="ai-api-key" placeholder="Overrides .env">
+                        </div>
+                    </div>
+                </div>
+                <div class="array-controls">
+                    <button type="button" class="btn-secondary" id="btn-tailor" onclick="tailorResume()"
+                        style="width: 100%; margin-top: 1rem;">TAILOR RESUME (AI)</button>
+                    <div id="tailor-progress" style="display: none; margin: 0.5rem 0;">
+                        <div style="background: var(--border); border-radius: 4px; height: 4px; overflow: hidden;">
+                            <div id="progress-bar-fill"
+                                style="background: var(--fg); height: 100%; width: 0; transition: width 0.3s;"></div>
+                        </div>
+                        <div id="progress-text" style="font-size: 11px; color: var(--muted); margin-top: 0.25rem;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- ============ PDF PREVIEW ============ -->
+        <aside class="preview-pane" id="preview-pane">
+            <div class="preview-header">
+                <div class="page-nav" id="page-nav" style="display:none">
+                    <button type="button" class="btn-small" id="btn-prev-page" onclick="prevPage()">‹</button>
+                    <span id="page-indicator">1 / 1</span>
+                    <button type="button" class="btn-small" id="btn-next-page" onclick="nextPage()">›</button>
+                    <button type="button" class="btn-secondary btn-small" id="btn-download"
+                        onclick="downloadPDF()">DOWNLOAD</button>
+                </div>
+                <span>PREVIEW</span>
+                <div class="preview-tabs" id="preview-tabs" style="display:none">
+                    <button type="button" class="preview-tab active" id="tab-pdf"
+                        onclick="switchPreviewTab('pdf')">PDF</button>
+                    <button type="button" class="preview-tab" id="tab-ai" onclick="switchPreviewTab('ai')">AI
+                        Results</button>
+                </div>
+            </div>
+            <div class="preview-body" id="preview-body">
+                <div class="preview-empty" id="preview-empty">CLICK GENERATE TO PREVIEW</div>
+            </div>
+        </aside>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        window.__DATA__ = {{ data_json | safe }};
+    </script>
+    <script src="/static/app.js"></script>
 
 </body>
+
 </html>
