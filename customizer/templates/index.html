@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/7.0.0/diff.min.js"></script>
 </head>
 <body>
 
@@ -27,6 +28,7 @@
         <button data-tab="education">EDUCATION</button>
         <button data-tab="experience">EXPERIENCE</button>
         <button data-tab="projects">PROJECTS</button>
+        <button data-tab="tailoring">TAILOR</button>
     </nav>
 
     <main class="editor-pane" id="form-root">
@@ -95,6 +97,49 @@
             <div id="projects-list"></div>
             <div class="array-controls">
                 <button type="button" class="btn-secondary btn-small" onclick="addProject()">+ ADD</button>
+            </div>
+        </div>
+
+        <!-- ============ TAILORING ============ -->
+        <div class="section" id="section-tailoring">
+            <h2 class="section-title">AI TAILORING</h2>
+            <div class="field">
+                <label for="ai-jd">JOB DESCRIPTION</label>
+                <textarea id="ai-jd" placeholder="Paste the job description here..." style="min-height: 150px;"></textarea>
+            </div>
+            <div class="field-group">
+                <div class="field-group-title">LLM CONFIGURATION (BYOK)</div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="ai-provider">PROVIDER</label>
+                        <select id="ai-provider">
+                            <option value="openai">OpenAI (Default)</option>
+                            <option value="cerebras">Cerebras</option>
+                            <option value="nvidia">Nvidia</option>
+                            <option value="gemini">Gemini API</option>
+                            <option value="openrouter">OpenRouter (Free)</option>
+                            <option value="openrouter_meta">OpenRouter (Meta Llama)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="ai-model">MODEL</label>
+                        <input type="text" id="ai-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini">
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="ai-base-url">BASE URL (OPTIONAL)</label>
+                        <input type="text" id="ai-base-url" placeholder="Leave empty for provider default">
+                    </div>
+                    <div class="field">
+                        <label for="ai-api-key">API KEY (OPTIONAL)</label>
+                        <input type="password" id="ai-api-key" placeholder="Overrides .env">
+                    </div>
+                </div>
+            </div>
+            <div class="array-controls">
+                <button type="button" class="btn-secondary" id="btn-tailor" onclick="tailorResume()" style="width: 100%; margin-top: 1rem;">TAILOR RESUME (AI)</button>
             </div>
         </div>
 

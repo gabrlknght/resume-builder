@@ -24,10 +24,11 @@ document.addEventListener("DOMContentLoaded", () => {
     renderExperience();
     renderProjects();
     initTabs();
+    initAITailoring();
 });
 
 // ---------------------------------------------------------------------------
-// Tabs
+// Tabs & AI Config
 // ---------------------------------------------------------------------------
 function initTabs() {
     const btns = document.querySelectorAll("#sidebar button");
@@ -38,6 +39,29 @@ function initTabs() {
             document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
             document.getElementById("section-" + btn.dataset.tab).classList.add("active");
         });
+    });
+}
+
+function initAITailoring() {
+    const providerSelect = document.getElementById("ai-provider");
+    if (!providerSelect) return;
+    
+    const PROVIDER_CONFIGS = {
+        "openai": { base_url: "", model: "gpt-4o-mini" },
+        "cerebras": { base_url: "https://api.cerebras.ai/v1", model: "llama3.1-8b" },
+        "nvidia": { base_url: "https://integrate.api.nvidia.com/v1", model: "moonshotai/kimi-k2.5" },
+        "gemini": { base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.5-flash" },
+        "openrouter": { base_url: "https://openrouter.ai/api/v1", model: "openrouter/free" },
+        "openrouter_meta": { base_url: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct:free" },
+        "custom": { base_url: "", model: "" }
+    };
+
+    providerSelect.addEventListener("change", (e) => {
+        const config = PROVIDER_CONFIGS[e.target.value];
+        if (config) {
+            document.getElementById("ai-model").value = config.model;
+            document.getElementById("ai-base-url").value = config.base_url;
+        }
     });
 }
 
@@ -507,6 +531,120 @@ async function saveToBackend() {
     } finally {
         btn.classList.remove("loading");
         btn.textContent = "SAVE TO BACKEND";
+    }
+}
+
+// ---------------------------------------------------------------------------
+// API: AI Tailoring
+// ---------------------------------------------------------------------------
+async function tailorResume() {
+    const jd = document.getElementById("ai-jd").value.trim();
+    if (!jd) {
+        toast("Please provide a Job Description", true);
+        return;
+    }
+
+    const provider = document.getElementById("ai-provider").value;
+    const model = document.getElementById("ai-model").value;
+    const baseUrl = document.getElementById("ai-base-url").value;
+    const apiKey = document.getElementById("ai-api-key").value;
+
+    const btn = document.getElementById("btn-tailor");
+    btn.classList.add("loading");
+    btn.textContent = "TAILORING… (MAY TAKE A MINUTE)";
+
+    try {
+        const currentData = collectPayload();
+        const payload = {
+            jd: jd,
+            config: {
+                provider: provider,
+                model: model,
+                base_url: baseUrl,
+                api_key: apiKey
+            },
+            data: currentData
+        };
+
+        const res = await fetch("/api/tailor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+            let errorMsg = "Tailoring failed";
+            try {
+                const err = await res.json();
+                errorMsg = err.error || errorMsg;
+            } catch(e) {}
+            throw new Error(errorMsg);
+        }
+
+        const tailoredData = await res.json();
+        
+        // Before state for diff
+        const beforeStr = JSON.stringify({
+            profile: currentData.profile,
+            experience: currentData.experience,
+            projects: currentData.projects
+        }, null, 2);
+        
+        // Merge the tailored data back into the state
+        if (tailoredData.profile) Object.assign(state.profile || {}, tailoredData.profile);
+        if (tailoredData.experience) state.experience = tailoredData.experience;
+        if (tailoredData.projects) state.projects = tailoredData.projects;
+
+        // After state for diff
+        const afterStr = JSON.stringify({
+            profile: state.profile,
+            experience: state.experience,
+            projects: state.projects
+        }, null, 2);
+
+        // Compute visual diff
+        let diffHtml = "";
+        if (window.Diff) {
+            const diff = Diff.diffWords(beforeStr, afterStr);
+            diffHtml = diff.map(part => {
+                let style = part.added ? "color: #2ecc71; font-weight: bold; background: rgba(46, 204, 113, 0.1);" : part.removed ? "color: #e74c3c; text-decoration: line-through; background: rgba(231, 76, 60, 0.1);" : "color: #888;";
+                return `<span style="${style}">${esc(part.value)}</span>`;
+            }).join("");
+        } else {
+            diffHtml = `<span style="color: #f1c40f">Diff generated, but visualization library failed to load. Check console.</span>`;
+        }
+
+        // Refresh UI
+        populateScalarFields();
+        renderExperience();
+        renderProjects();
+        
+        // Show AI changes in the preview pane
+        const previewBody = document.getElementById("preview-body");
+        const pageNav = document.getElementById("page-nav");
+        if (pageNav) pageNav.style.display = "none";
+        
+        const relScore = tailoredData.relevance || 'N/A';
+        const relColor = typeof relScore === 'number' && relScore >= 7 ? '#2ecc71' : typeof relScore === 'number' && relScore >= 4 ? '#f1c40f' : '#e74c3c';
+        
+        previewBody.innerHTML = `
+            <div style="width: 100%; height: 100%; display: flex; flex-direction: column; text-align: left;">
+                <div style="font-size: 11px; text-transform: uppercase; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: var(--fg); font-weight: bold;">AI TAILORING RESULTS</span>
+                    <span style="color: ${relColor}; font-weight: bold; padding: 2px 6px; border: 1px solid ${relColor};">JD RELEVANCE: ${relScore}/10</span>
+                </div>
+                ${tailoredData.relevance_analysis ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border); line-height: 1.6;">${esc(tailoredData.relevance_analysis)}</div>` : ''}
+                <div style="font-size: 11px; text-transform: uppercase; color: var(--fg); margin-bottom: 0.5rem;">DIFF CHANGES:</div>
+                <pre style="flex: 1; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #0a0a0a; padding: 0.5rem; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border);">${diffHtml}</pre>
+            </div>
+        `;
+        
+        toast("RESUME TAILORED SUCCESSFULLY");
+    } catch (e) {
+        toast(e.message, true);
+    } finally {
+        btn.classList.remove("loading");
+        btn.textContent = "TAILOR RESUME (AI)";
     }
 }
 

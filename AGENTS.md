@@ -30,6 +30,12 @@ This repository is designed to be highly interoperable with AI coding assistants
 - **How it works**: An AI agent equipped with this skill reads `data/*.json` files, analyzes a job description, and rewrites bullet points, skills, and summary to match the target role.
 - **Usage**: Ask your AI assistant to "tailor resume to [Job Description]" — it will safely update the JSON structure.
 
+### Built-in Web Integration (Phase 1)
+The core logic of the `resume-builder-tailor` skill is now natively integrated into the `customizer/` Local Web UI backend(v1 has it in a single prompt, this will be improved).
+- **BYOK Support**: Users can specify their provider (OpenAI, Gemini, Cerebras, OpenRouter), API Key, and Model directly via the local web UI (`/api/tailor`).
+- **Dynamic Diffing**: The UI automatically parses the LLM agent's output and renders a diff in the Preview pane, making hallucination auditing effortless.
+- **JD Match Scoring**: The agent computes an out-of-10 relevance score and structural gap analysis against the target Job Description to highlight exactly where the resume falls short.
+
 ## CI/CD Workflow
 
 GitHub Actions (`.github/workflows/build-resume.yml`) auto-generates PDFs on every push to `main`:

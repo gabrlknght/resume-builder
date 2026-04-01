@@ -31,10 +31,12 @@ Two workflows available:
    ```
 4. Open [http://localhost:8000](http://localhost:8000).
 
+![Resume Customizer UI](docs/pdf_preview_final.png)
+
 ## Features
 
 - **Local Web UI**: A minimalist, built-in Customizer UI lets you edit JSON data effortlessly and preview the generated PDF in real-time.
-- **AI-Tailored Resumes**: Fully interoperable with AI agents. Use the [`resume-builder-tailor`](https://github.com/jangwanAnkit/skills/tree/main/resume-builder-tailor) AI skill to completely rewrite your experience data to target specific job descriptions.
+- **AI-Tailored Resumes (Phase 1)**: The capability of the `resume-builder-tailor` agent is now available strictly inside the customizer backend. It connects to OpenAI, OpenRouter, Cerebras, and Gemini natively with BYOK (Bring Your Own Key) capability. View side-by-side red/green visual diffs and automatic JD relevance scoring.
 - **JSON-based Source of Truth**: Manage all your data (profile, experience, education, skills, projects) in structured JSON files.
 - **LaTeX Professionalism**: Utilizes a professional LaTeX template with Jinja2 rendering for a premium look.
 - **Automated CI/CD**: GitHub Actions automatically compiles your LaTeX source into a PDF on every push to `main`.
