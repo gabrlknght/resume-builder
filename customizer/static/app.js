@@ -614,9 +614,30 @@ function applyTailoredData(data, isSkip) {
 
     let evalHtml = "";
     if (data.eval_scores && typeof data.eval_scores === 'object') {
+        const es = data.eval_scores;
+        const formatVal = (v) => {
+            if (Array.isArray(v)) return v.length === 0 ? "none" : v.join(", ");
+            if (v && typeof v === "object") return JSON.stringify(v);
+            if (typeof v === "number") return (v <= 1 && v >= 0) ? (v * 100).toFixed(0) + "%" : String(v);
+            return String(v);
+        };
+        // Show key metrics in a clean layout
+        const rows = [
+            ["Alignment", es.job_alignment_score],
+            ["Preservation", es.content_preservation],
+        ];
+        if (es.hallucinated_numbers && es.hallucinated_numbers.length > 0) {
+            rows.push(["Hallucinated", es.hallucinated_numbers]);
+        }
+        if (es.immutable_violations && es.immutable_violations.length > 0) {
+            rows.push(["Field violations", es.immutable_violations]);
+        }
+        if (es.overall_pass !== undefined) {
+            rows.push(["Overall", es.overall_pass ? "passed" : "needs review"]);
+        }
         evalHtml = `<div style="font-size: 11px; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border);">
             <div style="text-transform: uppercase; color: var(--fg); margin-bottom: 0.35rem;">EVAL SCORES:</div>
-            ${Object.entries(data.eval_scores).map(([k, v]) => `<div style="color: var(--muted); display: flex; justify-content: space-between;"><span>${esc(k)}</span><span style="color: var(--fg);">${esc(String(v))}</span></div>`).join("")}
+            ${rows.map(([k, v]) => `<div style="color: var(--muted); display: flex; justify-content: space-between;"><span>${esc(k)}</span><span style="color: var(--fg);">${esc(formatVal(v))}</span></div>`).join("")}
         </div>`;
     }
 
