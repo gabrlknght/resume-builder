@@ -18,7 +18,12 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -36,6 +41,7 @@ SECTION_FILES = {
     "education": "education.json",
     "experience": "experience.json",
     "projects": "projects.json",
+    "skills": "skills.json",
 }
 
 # ---------------------------------------------------------------------------
@@ -75,6 +81,7 @@ def _safe_filename(name: str) -> str:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -123,8 +130,10 @@ async def generate(request: Request):
             [
                 "python3",
                 str(RENDER_SCRIPT),
-                "--data-dir", str(tmp),
-                "--output", tex_name,
+                "--data-dir",
+                str(tmp),
+                "--output",
+                tex_name,
             ],
             capture_output=True,
             text=True,
@@ -134,7 +143,10 @@ async def generate(request: Request):
         if result.returncode != 0 or not tex_file.exists():
             return JSONResponse(
                 status_code=500,
-                content={"error": "Template rendering failed", "details": result.stderr or result.stdout},
+                content={
+                    "error": "Template rendering failed",
+                    "details": result.stderr or result.stdout,
+                },
             )
 
         # Run pdflatex from PROJECT_ROOT (so \input{glyphtounicode} resolves)
@@ -150,7 +162,10 @@ async def generate(request: Request):
             tex_file.unlink(missing_ok=True)
             return JSONResponse(
                 status_code=500,
-                content={"error": "PDF compilation failed", "details": result.stdout[-2000:]},
+                content={
+                    "error": "PDF compilation failed",
+                    "details": result.stdout[-2000:],
+                },
             )
 
         # Determine download filename
@@ -187,118 +202,55 @@ async def save(request: Request):
     return {"status": "ok", "message": "All data saved to disk."}
 
 
-PROVIDER_CONFIGS = {
-    "cerebras": {"base_url": "https://api.cerebras.ai/v1"},
-    "nvidia": {"base_url": "https://integrate.api.nvidia.com/v1"},
-    "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
-    "openrouter": {"base_url": "https://openrouter.ai/api/v1"},
-    "openai": {"base_url": None},
-}
-
 @app.post("/api/tailor")
 async def tailor(request: Request):
     """
-    Accept JD and Resume JSON payload, call LLM to tailor the profile/experience/projects.
-    Returns the newly tailored JSON objects.
+    Multi-stage tailoring pipeline — streams SSE events as each stage completes.
+    Accepts JD text, provider config, and current resume data.
     """
     import os
-    try:
-        import openai
-    except ImportError:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "openai module not installed. Run: pip install openai"}
-        )
+
+    from customizer.pipeline import get_instructor_client, run_pipeline, sse_event
 
     payload = await request.json()
     jd = payload.get("jd", "")
     config = payload.get("config", {})
     data = payload.get("data", {})
 
+    if not jd.strip():
+        return JSONResponse(
+            status_code=400, content={"error": "Job description is required."}
+        )
+
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
-    base_url = config.get("base_url", "").strip()
     api_key = config.get("api_key", "").strip()
 
-    if not base_url:
-        base_url = PROVIDER_CONFIGS.get(provider, {}).get("base_url")
-        
     if not api_key:
         env_key = f"{provider.upper()}_API_KEY"
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
-        
+
     if not api_key:
-        return JSONResponse(status_code=400, content={"error": f"API Key is required. Please provide it in the UI or set {env_key} / OPENAI_API_KEY environment variable."})
-
-    client = openai.OpenAI(api_key=api_key, base_url=base_url)
-
-    skill_path = CUSTOMIZER_DIR / "TAILOR_SKILL.md"
-    skill_instructions = skill_path.read_text(encoding="utf-8") if skill_path.exists() else "Tailor the resume to the JD."
-
-    prompt = f"""
-{skill_instructions}
-
-You are an expert technical resume writer. Given the user's current resume data (JSON) and a target Job Description, tailor the resume to the job description.
-
-Specifically, you should update:
-1. The `profile` section (especially the `bio` and perhaps `title`).
-2. The `experience` section (rephrase and enhance `details` bullet points with relevant keywords from the JD without fabricating experience).
-3. The `projects` section (rephrase `description` and `technologies`).
-4. Rate the relevance of the user's resume to the JD on a scale of 1-10.
-5. Provide a brief gap analysis explaining exactly what the resume lacks compared to the JD.
-
-CRITICAL INSTRUCTIONS TO PREVENT DATA CORRUPTION & AI SLOP:
-- You MUST preserve the EXACT JSON structure, arrays, and keys of the input.
-- DO NOT delete, alter, or corrupt ANY metadata fields (e.g. `startDate`, `endDate`, `location`, `company`, `role`, `logo`, `liveUrl`, etc.). Keep them exactly as they are.
-- DO NOT write any meta-commentary, thoughts, notes, or explanations (like "Rephrased to emphasize use of Next.js") inside the output text fields!
-- Provide ONLY the final, polished, rephrased content for the `bio`, `details`, and `description` strings.
-
-DO NOT return anything other than a valid JSON object. 
-Ensure the returned JSON has EXACTLY five keys: "profile", "experience", "projects", "relevance" (integer 1-10), and "relevance_analysis" (string summary).
-
-Job Description:
-{jd[-6000:]}
-
-Current Resume Data:
-{json.dumps({
-    "profile": data.get("profile", {}),
-    "experience": data.get("experience", {}).get("experience", []),
-    "projects": data.get("projects", {}).get("projects", [])
-}, indent=2)}
-
-Return ONLY a raw JSON string mapping to those 5 keys. DO NOT wrap with ```json or markdown tags.
-"""
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are an expert AI recruiter and resume writer. Respond strictly with raw valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.7,
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f"API Key is required. Please provide it in the UI or set {env_key} / OPENAI_API_KEY environment variable."
+            },
         )
-        
-        result_text = response.choices[0].message.content.strip()
-        if result_text.startswith("```json"):
-            result_text = result_text[7:-3].strip()
-        elif result_text.startswith("```"):
-            result_text = result_text[3:-3].strip()
-            
-        tailored_json = json.loads(result_text)
-        
-        # Format lists back to dict wrapper expected by frontend state
-        if isinstance(tailored_json.get("experience"), list):
-            tailored_json["experience"] = {"experience": tailored_json["experience"]}
-        if isinstance(tailored_json.get("projects"), list):
-            tailored_json["projects"] = {"projects": tailored_json["projects"]}
-            
-        return tailored_json
 
+    try:
+        client = get_instructor_client({**config, "api_key": api_key})
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": f"LLM Generation Failed: {{str(e)}}"})
+        return JSONResponse(
+            status_code=500, content={"error": f"Failed to create API client: {str(e)}"}
+        )
+
+    return StreamingResponse(
+        run_pipeline(client, model, jd, data),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -306,5 +258,7 @@ Return ONLY a raw JSON string mapping to those 5 keys. DO NOT wrap with ```json 
 if __name__ == "__main__":
     if not HAS_PDFLATEX:
         print("\033[33m[WARNING] pdflatex not found. PDF generation will fail.\033[0m")
-        print("  Install: sudo apt install texlive-latex-base texlive-fonts-extra texlive-latex-extra")
+        print(
+            "  Install: sudo apt install texlive-latex-base texlive-fonts-extra texlive-latex-extra"
+        )
     uvicorn.run(app, host="127.0.0.1", port=8000)

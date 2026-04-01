@@ -3,3 +3,4 @@ fastapi
 uvicorn[standard]
 openai
 pydantic
+instructor>=1.7.0
