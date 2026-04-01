@@ -11,10 +11,17 @@ Usage:
 
 import json
 import subprocess
+import sys
 import tempfile
 import shutil
 import re
 from pathlib import Path
+
+# Ensure customizer/ is on sys.path so `from pipeline import ...` works
+# regardless of how the server is started (direct script or uvicorn import).
+_CUSTOMIZER_DIR = Path(__file__).resolve().parent
+if str(_CUSTOMIZER_DIR) not in sys.path:
+    sys.path.insert(0, str(_CUSTOMIZER_DIR))
 
 import uvicorn
 from fastapi import FastAPI, Request
