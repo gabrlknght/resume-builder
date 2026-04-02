@@ -12,6 +12,7 @@ This project leverages both automated CI/CD and AI-assisted workflows to build, 
 - **JSON Data Structure**: The `data/*.json` schema (profile, experience, education, projects, skills, contact) cleanly separates content from presentation.
 - **LaTeX Templates**: `templates/resume.tex.j2` uses Jinja2 templating to inject JSON data into a professional LaTeX document.
 - **Build Scripts**: `scripts/render_resume.py` parses templates, loads data, and generates `.tex` output.
+- **Tailoring Pipeline**: `customizer/pipeline.py` implements the 4-stage AI tailoring pipeline using `instructor` for structured LLM output.
 
 ## Local Web UI (customizer/)
 
@@ -21,6 +22,7 @@ The built-in web interface for power users who want local control:
 - **Design System**: Minimalist black-and-white with JetBrains Mono font (brutalist, developer-centric).
 - **PDF Preview**: Real-time preview via Mozilla's `pdf.js` embedded in browser.
 - **Data Persistence**: Reads from/writes to `data/*.json` files via "Save to Backend" button.
+- **Real-Time AI Progress**: Tailoring streams stage-by-stage progress via SSE (Server-Sent Events) — JD Analysis, Match & Score, Section Tailoring, Validation.
 
 ## The `tailor-resume` AI Skill
 
@@ -30,11 +32,27 @@ This repository is designed to be highly interoperable with AI coding assistants
 - **How it works**: An AI agent equipped with this skill reads `data/*.json` files, analyzes a job description, and rewrites bullet points, skills, and summary to match the target role.
 - **Usage**: Ask your AI assistant to "tailor resume to [Job Description]" — it will safely update the JSON structure.
 
-### Built-in Web Integration (Phase 1)
-The core logic of the `resume-builder-tailor` skill is now natively integrated into the `customizer/` Local Web UI backend(v1 has it in a single prompt, this will be improved).
-- **BYOK Support**: Users can specify their provider (OpenAI, Gemini, Cerebras, OpenRouter), API Key, and Model directly via the local web UI (`/api/tailor`).
-- **Dynamic Diffing**: The UI automatically parses the LLM agent's output and renders a diff in the Preview pane, making hallucination auditing effortless.
-- **JD Match Scoring**: The agent computes an out-of-10 relevance score and structural gap analysis against the target Job Description to highlight exactly where the resume falls short.
+### Built-in Web Integration (Multi-Stage Pipeline)
+
+The `/api/tailor` endpoint uses a **4-stage pipeline** that replaces the original single-prompt approach. Each stage has a focused responsibility:
+
+```
+Stage 1: JD Analysis      — Extracts structured requirements from JD text (LLM, temperature=0.1)
+Stage 2: Match & Score    — Deterministic keyword matching, no LLM cost. Early exit if relevance ≤ 2
+Stage 3: Section Tailoring — 3 parallel LLM calls (profile, experience, projects) via asyncio.gather
+Stage 4: Validate & Assemble — Pydantic schema validation + immutable field checks + eval metrics
+```
+
+- **Structured Output**: Uses the `instructor` library for automatic Pydantic validation and retry on LLM output failures.
+- **BYOK Support**: Users specify provider (OpenAI, Gemini, Cerebras, OpenRouter), API Key, and Model via the UI.
+- **SSE Progress Streaming**: Real-time stage-by-stage progress updates via Server-Sent Events (not a blind spinner).
+- **Eval Metrics**: Each tailoring run computes `job_alignment_score`, `content_preservation`, and `hallucinated_numbers` from the `eval-module`.
+- **Immutable Field Protection**: Company names, dates, locations, and URLs are auto-restored if the LLM mutates them.
+- **Dynamic Diffing**: The UI renders a visual diff in the Preview pane after tailoring completes.
+- **JD Match Scoring**: Relevance score (1-10) with gap analysis showing matched vs missing requirements.
+
+**Pipeline code**: `customizer/pipeline.py` — all stage functions, Pydantic models, and the SSE orchestrator.
+**Eval module**: `eval-module/eval/` — schemas, metrics, golden test cases (used by Stage 4 for validation).
 
 ## CI/CD Workflow
 

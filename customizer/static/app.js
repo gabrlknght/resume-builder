@@ -9,6 +9,12 @@
 // ---------------------------------------------------------------------------
 const state = JSON.parse(JSON.stringify(window.__DATA__));
 
+// Staged review state for AI tailoring
+let originalSnapshot = null;   // pre-tailoring state for Reset
+let pendingTailored = null;    // AI results awaiting user approval
+let currentPreviewTab = "pdf"; // "pdf" or "ai"
+let lastAiResultsHTML = "";    // persisted AI results HTML
+
 // PDF preview state
 let pdfBlob = null;
 let pdfDoc = null;
@@ -42,10 +48,40 @@ function initTabs() {
     });
 }
 
+function switchPreviewTab(tab) {
+    currentPreviewTab = tab;
+    const tabPdf = document.getElementById("tab-pdf");
+    const tabAi = document.getElementById("tab-ai");
+    const pageNav = document.getElementById("page-nav");
+
+    if (tab === "pdf") {
+        tabPdf.classList.add("active");
+        tabAi.classList.remove("active");
+        if (pdfBlob) {
+            renderPDFPreview(pdfBlob);
+        } else {
+            const body = document.getElementById("preview-body");
+            body.innerHTML = `<div class="preview-empty" id="preview-empty">CLICK GENERATE TO PREVIEW</div>`;
+            if (pageNav) pageNav.style.display = "none";
+        }
+    } else {
+        tabPdf.classList.remove("active");
+        tabAi.classList.add("active");
+        if (pageNav) pageNav.style.display = "none";
+        const body = document.getElementById("preview-body");
+        body.innerHTML = lastAiResultsHTML;
+    }
+}
+
+function showPreviewTabs() {
+    const tabsBar = document.getElementById("preview-tabs");
+    if (tabsBar) tabsBar.style.display = "flex";
+}
+
 function initAITailoring() {
     const providerSelect = document.getElementById("ai-provider");
     if (!providerSelect) return;
-    
+
     const PROVIDER_CONFIGS = {
         "openai": { base_url: "", model: "gpt-4o-mini" },
         "cerebras": { base_url: "https://api.cerebras.ai/v1", model: "llama3.1-8b" },
@@ -441,7 +477,7 @@ async function renderPDFPreview(blob) {
     // Show page nav
     const nav = document.getElementById("page-nav");
     if (nav) nav.style.display = "flex";
-    
+
     const empty = document.getElementById("preview-empty");
     if (empty) empty.style.display = "none";
 
@@ -537,6 +573,168 @@ async function saveToBackend() {
 // ---------------------------------------------------------------------------
 // API: AI Tailoring
 // ---------------------------------------------------------------------------
+function updateProgress(pct, message) {
+    const container = document.getElementById("tailor-progress");
+    const fill = document.getElementById("progress-bar-fill");
+    const text = document.getElementById("progress-text");
+    if (container) container.style.display = "block";
+    if (fill) fill.style.width = pct + "%";
+    if (text) text.textContent = message;
+}
+
+function handlePipelineEvent(event) {
+    const stageMap = {
+        1: { pct: 10, label: "Stage 1/4: Analyzing job description..." },
+        2: { pct: 35, label: "Stage 2/4: Matching resume to requirements..." },
+        3: { pct: 65, label: "Stage 3/4: Tailoring resume sections..." },
+        4: { pct: 90, label: "Stage 4/4: Validating output..." },
+    };
+
+    if (event.status === "error") {
+        updateProgress(0, "Error: " + (event.message || "Unknown error"));
+        return;
+    }
+
+    if (event.status === "in_progress") {
+        const info = stageMap[event.stage];
+        if (info) updateProgress(info.pct, event.message || info.label);
+        return;
+    }
+
+    if (event.status === "complete") {
+        const info = stageMap[event.stage];
+        if (info) updateProgress(info.pct, (info.label.replace("...", "") + " done"));
+    }
+}
+
+function applyTailoredData(data, isSkip) {
+    if (isSkip) {
+        const relScore = data.relevance || 'N/A';
+        lastAiResultsHTML = `
+            <div style="width:100%; text-align:left;">
+                <div style="font-size:11px; text-transform:uppercase; margin-bottom:0.5rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
+                    <span style="color:var(--fg); font-weight:bold;">AI TAILORING — SKIPPED (LOW MATCH)</span>
+                    <span style="color:#e74c3c; font-weight:bold; float:right;">JD: ${relScore}/10</span>
+                </div>
+                ${data.relevance_analysis ? `<div style="font-size:11px; color:var(--muted); line-height:1.6;">${esc(data.relevance_analysis)}</div>` : ''}
+            </div>`;
+        showPreviewTabs();
+        switchPreviewTab("ai");
+        return;
+    }
+
+    // Stage results — don't apply to state yet
+    pendingTailored = {
+        profile: data.profile || null,
+        experience: data.experience || null,
+        projects: data.projects || null
+    };
+
+    // Compute diff: original snapshot vs pending tailored
+    const beforeStr = JSON.stringify(originalSnapshot, null, 2);
+    const afterStr = JSON.stringify(pendingTailored, null, 2);
+
+    let diffHtml = "";
+    if (window.Diff) {
+        const diff = Diff.diffWords(beforeStr, afterStr);
+        diffHtml = diff.map(part => {
+            let style = part.added ? "color: #2ecc71; font-weight: bold; background: rgba(46, 204, 113, 0.1);" : part.removed ? "color: #e74c3c; text-decoration: line-through; background: rgba(231, 76, 60, 0.1);" : "color: #888;";
+            return `<span style="${style}">${esc(part.value)}</span>`;
+        }).join("");
+    } else {
+        diffHtml = `<span style="color: #f1c40f">Diff library failed to load.</span>`;
+    }
+
+    const relScore = data.relevance || 'N/A';
+    const relColor = typeof relScore === 'number' && relScore >= 7 ? '#2ecc71' : typeof relScore === 'number' && relScore >= 4 ? '#f1c40f' : '#e74c3c';
+
+    let evalHtml = "";
+    if (data.eval_scores && typeof data.eval_scores === 'object') {
+        const es = data.eval_scores;
+        const formatVal = (v) => {
+            if (Array.isArray(v)) return v.length === 0 ? "none" : v.join(", ");
+            if (v && typeof v === "object") return JSON.stringify(v);
+            if (typeof v === "number") return (v <= 1 && v >= 0) ? (v * 100).toFixed(0) + "%" : String(v);
+            return String(v);
+        };
+        const rows = [
+            ["Alignment", es.job_alignment_score],
+            ["Preservation", es.content_preservation],
+        ];
+        if (es.hallucinated_numbers && es.hallucinated_numbers.length > 0) {
+            rows.push(["Hallucinated", es.hallucinated_numbers]);
+        }
+        if (es.immutable_violations && es.immutable_violations.length > 0) {
+            rows.push(["Field violations", es.immutable_violations]);
+        }
+        if (es.overall_pass !== undefined) {
+            rows.push(["Overall", es.overall_pass ? "passed" : "needs review"]);
+        }
+        evalHtml = `<div style="font-size: 11px; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border);">
+            <div style="text-transform: uppercase; color: var(--fg); margin-bottom: 0.35rem;">EVAL SCORES:</div>
+            ${rows.map(([k, v]) => `<div style="color: var(--muted); display: flex; justify-content: space-between;"><span>${esc(k)}</span><span style="color: var(--fg);">${esc(formatVal(v))}</span></div>`).join("")}
+        </div>`;
+    }
+
+    const hasPending = pendingTailored !== null;
+    lastAiResultsHTML = `
+        <div style="width: 100%; height: 100%; display: flex; flex-direction: column; text-align: left;">
+            <div style="font-size: 11px; text-transform: uppercase; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--fg); font-weight: bold;">AI TAILORING RESULTS — REVIEW BEFORE APPLYING</span>
+                <span style="color: ${relColor}; font-weight: bold; padding: 2px 6px; border: 1px solid ${relColor};">JD: ${relScore}/10</span>
+            </div>
+            ${data.relevance_analysis ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border); line-height: 1.6;">${esc(data.relevance_analysis)}</div>` : ''}
+            ${evalHtml}
+            <div style="font-size: 11px; text-transform: uppercase; color: var(--fg); margin-bottom: 0.5rem;">DIFF CHANGES:</div>
+            <div style="position: relative; flex: 1; overflow-y: auto; min-height: 0;">
+                <pre style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #0a0a0a; padding: 0.5rem; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border); margin: 0;">${diffHtml}</pre>
+                <div style="position: sticky; bottom: 0; display: flex; gap: 8px; padding: 8px; background: linear-gradient(transparent, var(--bg) 30%); margin-top: -2rem;">
+                    <button onclick="applyPendingChanges()" style="flex: 1; padding: 8px; background: #2ecc71; color: #000; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: bold; text-transform: uppercase;">Apply Changes</button>
+                    <button onclick="discardPendingChanges()" style="flex: 1; padding: 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;">Discard</button>
+                    <button onclick="resetToOriginal()" style="padding: 8px 12px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;" ${!originalSnapshot ? 'disabled' : ''}>Reset</button>
+                </div>
+            </div>
+        </div>`;
+
+    showPreviewTabs();
+    switchPreviewTab("ai");
+}
+
+function applyPendingChanges() {
+    if (!pendingTailored) return;
+    if (pendingTailored.profile) Object.assign(state.profile, pendingTailored.profile);
+    if (pendingTailored.experience) state.experience = pendingTailored.experience;
+    if (pendingTailored.projects) state.projects = pendingTailored.projects;
+    pendingTailored = null;
+
+    populateScalarFields();
+    renderExperience();
+    renderProjects();
+    generatePDF().then(() => switchPreviewTab("pdf"));
+    toast("Changes applied to form fields.");
+}
+
+function discardPendingChanges() {
+    pendingTailored = null;
+    switchPreviewTab("pdf");
+    toast("AI changes discarded.");
+}
+
+function resetToOriginal() {
+    if (!originalSnapshot) return;
+    state.profile = JSON.parse(JSON.stringify(originalSnapshot.profile));
+    state.experience = JSON.parse(JSON.stringify(originalSnapshot.experience));
+    state.projects = JSON.parse(JSON.stringify(originalSnapshot.projects));
+    originalSnapshot = null;
+    pendingTailored = null;
+
+    populateScalarFields();
+    renderExperience();
+    renderProjects();
+    generatePDF().then(() => switchPreviewTab("pdf"));
+    toast("Reset to pre-tailoring state.");
+}
+
 async function tailorResume() {
     const jd = document.getElementById("ai-jd").value.trim();
     if (!jd) {
@@ -555,6 +753,14 @@ async function tailorResume() {
 
     try {
         const currentData = collectPayload();
+        // Save snapshot for Reset functionality
+        originalSnapshot = JSON.parse(JSON.stringify({
+            profile: currentData.profile,
+            experience: currentData.experience,
+            projects: currentData.projects
+        }));
+        pendingTailored = null;
+
         const payload = {
             jd: jd,
             config: {
@@ -577,74 +783,72 @@ async function tailorResume() {
             try {
                 const err = await res.json();
                 errorMsg = err.error || errorMsg;
-            } catch(e) {}
+            } catch (e) { }
             throw new Error(errorMsg);
         }
 
-        const tailoredData = await res.json();
-        
-        // Before state for diff
-        const beforeStr = JSON.stringify({
-            profile: currentData.profile,
-            experience: currentData.experience,
-            projects: currentData.projects
-        }, null, 2);
-        
-        // Merge the tailored data back into the state
-        if (tailoredData.profile) Object.assign(state.profile || {}, tailoredData.profile);
-        if (tailoredData.experience) state.experience = tailoredData.experience;
-        if (tailoredData.projects) state.projects = tailoredData.projects;
+        // SSE streaming: read chunks from response body
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-        // After state for diff
-        const afterStr = JSON.stringify({
-            profile: state.profile,
-            experience: state.experience,
-            projects: state.projects
-        }, null, 2);
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
 
-        // Compute visual diff
-        let diffHtml = "";
-        if (window.Diff) {
-            const diff = Diff.diffWords(beforeStr, afterStr);
-            diffHtml = diff.map(part => {
-                let style = part.added ? "color: #2ecc71; font-weight: bold; background: rgba(46, 204, 113, 0.1);" : part.removed ? "color: #e74c3c; text-decoration: line-through; background: rgba(231, 76, 60, 0.1);" : "color: #888;";
-                return `<span style="${style}">${esc(part.value)}</span>`;
-            }).join("");
-        } else {
-            diffHtml = `<span style="color: #f1c40f">Diff generated, but visualization library failed to load. Check console.</span>`;
+            // Parse complete SSE lines from the buffer
+            const lines = buffer.split("\n");
+            // Keep the last potentially incomplete line in the buffer
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith("data: ")) continue;
+                const jsonStr = trimmed.slice("data: ".length);
+                let event;
+                try {
+                    event = JSON.parse(jsonStr);
+                } catch (e) {
+                    continue;
+                }
+
+                // Error from pipeline
+                if (event.status === "error") {
+                    handlePipelineEvent(event);
+                    throw new Error(event.message || "Pipeline error");
+                }
+
+                // Pipeline stage events
+                if (event.stage !== "final") {
+                    handlePipelineEvent(event);
+                    continue;
+                }
+
+                // Final event
+                if (event.stage === "final" && event.status === "complete") {
+                    updateProgress(100, "Complete");
+                    applyTailoredData(event.data, false);
+                    toast("RESUME TAILORED SUCCESSFULLY");
+                } else if (event.stage === "final" && event.status === "skip") {
+                    updateProgress(100, "Skipped — relevance already high");
+                    applyTailoredData(event.data, true);
+                    toast("RESUME ALREADY A GOOD MATCH");
+                }
+            }
         }
-
-        // Refresh UI
-        populateScalarFields();
-        renderExperience();
-        renderProjects();
-        
-        // Show AI changes in the preview pane
-        const previewBody = document.getElementById("preview-body");
-        const pageNav = document.getElementById("page-nav");
-        if (pageNav) pageNav.style.display = "none";
-        
-        const relScore = tailoredData.relevance || 'N/A';
-        const relColor = typeof relScore === 'number' && relScore >= 7 ? '#2ecc71' : typeof relScore === 'number' && relScore >= 4 ? '#f1c40f' : '#e74c3c';
-        
-        previewBody.innerHTML = `
-            <div style="width: 100%; height: 100%; display: flex; flex-direction: column; text-align: left;">
-                <div style="font-size: 11px; text-transform: uppercase; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: var(--fg); font-weight: bold;">AI TAILORING RESULTS</span>
-                    <span style="color: ${relColor}; font-weight: bold; padding: 2px 6px; border: 1px solid ${relColor};">JD RELEVANCE: ${relScore}/10</span>
-                </div>
-                ${tailoredData.relevance_analysis ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border); line-height: 1.6;">${esc(tailoredData.relevance_analysis)}</div>` : ''}
-                <div style="font-size: 11px; text-transform: uppercase; color: var(--fg); margin-bottom: 0.5rem;">DIFF CHANGES:</div>
-                <pre style="flex: 1; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #0a0a0a; padding: 0.5rem; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border);">${diffHtml}</pre>
-            </div>
-        `;
-        
-        toast("RESUME TAILORED SUCCESSFULLY");
     } catch (e) {
         toast(e.message, true);
     } finally {
         btn.classList.remove("loading");
         btn.textContent = "TAILOR RESUME (AI)";
+        // Hide progress bar after a delay
+        setTimeout(() => {
+            const container = document.getElementById("tailor-progress");
+            if (container) container.style.display = "none";
+            const fill = document.getElementById("progress-bar-fill");
+            if (fill) fill.style.width = "0";
+        }, 3000);
     }
 }
 

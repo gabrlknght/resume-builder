@@ -190,6 +190,33 @@ button:active {
     padding: 2px 6px;
 }
 
+.preview-tabs {
+    display: flex;
+    gap: 0;
+}
+
+.preview-tab {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 3px 10px;
+    font-family: inherit;
+    font-size: 10px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.preview-tab:first-child {
+    border-right: none;
+}
+
+.preview-tab.active {
+    color: var(--fg);
+    background: #111;
+}
+
 .preview-body {
     flex: 1;
     overflow-y: auto;

@@ -36,10 +36,11 @@ Two workflows available:
 ## Features
 
 - **Local Web UI**: A minimalist, built-in Customizer UI lets you edit JSON data effortlessly and preview the generated PDF in real-time.
-- **AI-Tailored Resumes (Phase 1)**: The capability of the `resume-builder-tailor` agent is now available strictly inside the customizer backend. It connects to OpenAI, OpenRouter, Cerebras, and Gemini natively with BYOK (Bring Your Own Key) capability. View side-by-side red/green visual diffs and automatic JD relevance scoring.
+- **AI-Tailored Resumes (Multi-Stage Pipeline)**: Tailor your resume to any job description using a 4-stage pipeline — JD Analysis, Match & Score, Section Tailoring, and Validation. Supports OpenAI, OpenRouter, Cerebras, and Gemini with BYOK. Streams real-time progress via SSE, shows visual diffs, relevance scoring, and evaluation metrics (alignment, content preservation, hallucination detection).
 - **JSON-based Source of Truth**: Manage all your data (profile, experience, education, skills, projects) in structured JSON files.
 - **LaTeX Professionalism**: Utilizes a professional LaTeX template with Jinja2 rendering for a premium look.
 - **Automated CI/CD**: GitHub Actions automatically compiles your LaTeX source into a PDF on every push to `main`.
+- **Evaluation Framework**: Built-in `eval-module` with Pydantic schemas, quality metrics (alignment, preservation, hallucination detection), and golden test cases for regression testing.
 
 ## JSON Data Structure
 
