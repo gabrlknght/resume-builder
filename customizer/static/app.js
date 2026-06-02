@@ -117,6 +117,7 @@ function initAITailoring() {
             baseUrlInput.disabled = (e.target.value === "openai");
         }
     });
+    providerSelect.dispatchEvent(new Event("change"));
 };
 
 // ---------------------------------------------------------------------------
