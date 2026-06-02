@@ -80,12 +80,7 @@ def get_instructor_client(config: dict):
     
     # Handle Ollama (localhost URL)
     resolved_base_url = base_url
-    model = config.get("model", "gpt-4o-mini")
-    
-    # Resolve Ollama model alias if needed
-    if provider == "ollama" and model in OLLAMA_MODEL_ALIASES:
-        model = OLLAMA_MODEL_ALIASES[model]
-    
+    # Model alias resolution is handled by resolve_ollama_model() (applied before run_pipeline).
     # Ollama uses no auth by default; pass a placeholder key so the openai
     # client doesn't raise a "Missing credentials" error at construction time.
     if provider == "ollama":
