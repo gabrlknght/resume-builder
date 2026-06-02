@@ -23,7 +23,7 @@ Two workflows available:
    ```
 2. **Run the customizer**:
    ```bash
-   uv run python customizer/server.py
+   uv run python customizer/server.py  # or: python3 customizer/server.py
    ```
 3. Open [http://localhost:7777](http://localhost:7777).
 
