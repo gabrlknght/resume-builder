@@ -263,13 +263,21 @@ echo ""
 echo -e "${GREEN}${BOLD}Everything is ready. Next steps:${RESET}"
 echo ""
 echo -e "  ${BOLD}1. Start the server:${RESET}"
-echo "       uv run python customizer/server.py"
+if command -v uv &>/dev/null; then
+    echo "       uv run python customizer/server.py"
+else
+    echo "       ${PYTHON_CMD} customizer/server.py"
+fi
 echo ""
 echo -e "  ${BOLD}2. Open the UI in your browser:${RESET}"
 echo "       http://localhost:7777"
 echo ""
 echo -e "  ${BOLD}3. (Optional) Change host/port:${RESET}"
-echo "       uv run uvicorn customizer.server:app --host 0.0.0.0 --port 8080"
+if command -v uv &>/dev/null; then
+    echo "       uv run uvicorn customizer.server:app --host 0.0.0.0 --port 8080"
+else
+    echo "       ${PYTHON_CMD} -m uvicorn customizer.server:app --host 0.0.0.0 --port 8080"
+fi
 echo ""
 
 if [[ "${OLLAMA_INSTALLED:-false}" == "true" ]]; then
