@@ -27,13 +27,19 @@ SKIP_OLLAMA=false
 OLLAMA_MODEL="gemma4:e4b"
 AUTO_YES=false
 
-for arg in "$@"; do
-    case "$arg" in
-        --no-tex)     SKIP_TEX=true ;;
-        --no-ollama)  SKIP_OLLAMA=true ;;
-        --yes|-y)     AUTO_YES=true ;;
-        --model=*)    OLLAMA_MODEL="${arg#--model=}" ;;
-        --model)      shift; OLLAMA_MODEL="$1" ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-tex)     SKIP_TEX=true; shift ;;
+        --no-ollama)  SKIP_OLLAMA=true; shift ;;
+        --yes|-y)     AUTO_YES=true; shift ;;
+        --model=*)    OLLAMA_MODEL="${1#--model=}"; shift ;;
+        --model)
+            if [[ -z "${2:-}" ]]; then
+                echo "ERROR: --model requires a value" >&2
+                exit 1
+            fi
+            OLLAMA_MODEL="$2"; shift 2 ;;
+        *) shift ;;
     esac
 done
 
