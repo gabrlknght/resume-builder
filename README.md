@@ -82,6 +82,7 @@ Set an API key as an environment variable to avoid pasting it into the UI every 
 export OPENAI_API_KEY="sk-..."
 export CEREBRAS_API_KEY="..."
 export GEMINI_API_KEY="..."
+export NVIDIA_API_KEY="..."
 export OPENROUTER_API_KEY="..."
 ```
 
