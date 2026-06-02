@@ -216,6 +216,7 @@ async def tailor(request: Request):
     Accepts JD text, provider config, and current resume data.
     """
     import os
+    from pipeline import resolve_ollama_model
 
     from pipeline import get_instructor_client, run_pipeline, sse_event
 
@@ -231,13 +232,24 @@ async def tailor(request: Request):
 
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
+    base_url = config.get("base_url", "").strip()
+    
+    # Allow Ollama without API key
     api_key = config.get("api_key", "").strip()
-
     if not api_key:
         env_key = f"{provider.upper()}_API_KEY"
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
-
-    if not api_key:
+    
+    if provider == "ollama":
+        # Ensure the custom base_url includes /v1 (Ollama's OpenAI-compatible path).
+        # If the user left it blank, pipeline.py falls back to PROVIDER_CONFIGS which
+        # already has /v1.  If they typed a URL, normalise it here.
+        if base_url:
+            base_url = base_url.rstrip("/")
+            if not base_url.endswith("/v1"):
+                base_url += "/v1"
+        model = resolve_ollama_model(model)
+    elif not api_key:
         return JSONResponse(
             status_code=400,
             content={
@@ -246,7 +258,12 @@ async def tailor(request: Request):
         )
 
     try:
-        client = get_instructor_client({**config, "api_key": api_key})
+        client = get_instructor_client({
+            "provider": provider,
+            "model": model,
+            "base_url": base_url or "",
+            "api_key": api_key
+        })
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"error": f"Failed to create API client: {str(e)}"}
@@ -268,4 +285,4 @@ if __name__ == "__main__":
         print(
             "  Install: sudo apt install texlive-latex-base texlive-fonts-extra texlive-latex-extra"
         )
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=7777)

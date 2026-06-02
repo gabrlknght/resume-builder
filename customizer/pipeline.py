@@ -50,8 +50,19 @@ PROVIDER_CONFIGS = {
     "cerebras": {"base_url": "https://api.cerebras.ai/v1"},
     "nvidia": {"base_url": "https://integrate.api.nvidia.com/v1"},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
+    "ollama": {
+        "base_url": "http://localhost:11434/v1"
+    },
+    "openai": {"base_url": None},  # Native OpenAI API
     "openrouter": {"base_url": "https://openrouter.ai/api/v1"},
-    "openai": {"base_url": None},
+    "mock": {}
+}
+
+# Ollama model alias mapping (short names → full Ollama model IDs)
+OLLAMA_MODEL_ALIASES = {
+    "lfm2.5": "lfm2.5:latest",
+    "gemma4": "gemma4:e4b",
+    "gpt-oss": "gpt-oss-20b",
 }
 
 
@@ -60,12 +71,40 @@ PROVIDER_CONFIGS = {
 # ---------------------------------------------------------------------------
 def get_instructor_client(config: dict):
     provider = config.get("provider", "openai")
-    api_key = config.get("api_key", "").strip()
-    base_url = config.get("base_url", "").strip()
+    api_key = (config.get("api_key") or "").strip()
+    base_url = (config.get("base_url") or "").strip()
+    
+    # Use default base_url from PROVIDER_CONFIGS if not provided
     if not base_url:
         base_url = PROVIDER_CONFIGS.get(provider, {}).get("base_url")
-    raw_client = openai.OpenAI(api_key=api_key, base_url=base_url)
-    return instructor.from_openai(raw_client)
+    
+    # Handle Ollama (localhost URL)
+    resolved_base_url = base_url
+    model = config.get("model", "gpt-4o-mini")
+    
+    # Resolve Ollama model alias if needed
+    if provider == "ollama" and model in OLLAMA_MODEL_ALIASES:
+        model = OLLAMA_MODEL_ALIASES[model]
+    
+    # Ollama uses no auth by default; pass a placeholder key so the openai
+    # client doesn't raise a "Missing credentials" error at construction time.
+    if provider == "ollama":
+        raw_client = openai.OpenAI(
+            base_url=resolved_base_url,
+            api_key="ollama",
+            timeout=60.0
+        )
+        # Local models often emit multiple parallel tool calls which instructor's
+        # TOOLS mode rejects.  JSON mode has the model return a raw JSON object
+        # instead, which small/local models handle much more reliably.
+        return instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
+    else:
+        # All other providers need API key and use OpenAI-compatible API
+        raw_client = openai.OpenAI(
+            api_key=api_key,
+            base_url=resolved_base_url
+        )
+        return instructor.from_openai(raw_client)
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +240,24 @@ def sse_event(data: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Stage 1: JD Analysis
+# Model helpers
+# ---------------------------------------------------------------------------
+def resolve_ollama_model(model_name: str) -> str:
+    """Map short model name to Ollama model ID if needed.
+
+    Args:
+        model_name (str): Short model name (e.g., "llama3.2")
+
+    Returns:
+        str: Full Ollama model ID (e.g., "llama3.2:latest")
+    """
+    if model_name in OLLAMA_MODEL_ALIASES:
+        return OLLAMA_MODEL_ALIASES[model_name]
+    return model_name  # Already a full model ID
+
+
+# ---------------------------------------------------------------------------
+# Stage 1: JD Analysis  
 # ---------------------------------------------------------------------------
 STAGE1_SYSTEM = """You are an expert technical recruiter and hiring manager.
 Analyze the job description and extract structured requirements.
@@ -210,8 +266,7 @@ For each requirement:
 - Identify the specific skill, tool, or qualification
 - Categorize it: technical, soft_skill, domain, certification, or experience_years
 - Assign priority: must_have (explicitly required), nice_to_have (preferred), bonus (mentioned)
-- Provide brief context of how it appears in the JD
-
+- Provide brief context of how it appears in the JD.
 Extract key responsibilities verbatim or near-verbatim from the JD.
 Identify ATS keywords that are important for this specific role."""
 
@@ -307,21 +362,27 @@ def compute_match_score(resume_data: dict, jd_analysis: JDAnalysis) -> MatchRepo
 STAGE3_PROFILE_SYSTEM = """You are an expert technical resume writer.
 Rephrase the profile bio and title to better align with the target job description.
 Preserve the candidate's name, avatar, socials, and contact info exactly.
-Keep the bio professional and concise. Do not invent experience."""
+Keep the bio professional and concise. Do not invent experience.
+
+IMPORTANT: Use keywords from the job requirements to enhance relevance."""
 
 
 STAGE3_EXPERIENCE_SYSTEM = """You are an expert technical resume writer.
 Rephrase experience bullet points to better align with the target job description.
 You may reorder bullets to lead with the most relevant achievements.
 Preserve company names, dates, locations, and logos exactly as given.
-Do not fabricate experience — only reframe existing achievements with relevant keywords."""
+Do not fabricate experience — only reframe existing achievements with relevant keywords.
+
+IMPORTANT: Use action verbs and quantify results where possible."""
 
 
 STAGE3_PROJECTS_SYSTEM = """You are an expert technical resume writer.
 Rephrase project descriptions to better align with the target job description.
 You may reorder technologies to highlight the most relevant ones first (only keep originals).
 Preserve project titles, URLs, statuses, and images exactly as given.
-Do not invent projects or technologies."""
+Do not invent projects or technologies.
+
+IMPORTANT: Use relevant tech keywords in descriptions to match the target role."""
 
 
 async def tailor_profile(
