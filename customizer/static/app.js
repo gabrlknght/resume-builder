@@ -87,19 +87,38 @@ function initAITailoring() {
         "cerebras": { base_url: "https://api.cerebras.ai/v1", model: "llama3.1-8b" },
         "nvidia": { base_url: "https://integrate.api.nvidia.com/v1", model: "moonshotai/kimi-k2.5" },
         "gemini": { base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.5-flash" },
+        "ollama": { base_url: "http://localhost:11434", model: "gemma4:e4b" },
         "openrouter": { base_url: "https://openrouter.ai/api/v1", model: "openrouter/free" },
         "openrouter_meta": { base_url: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct:free" },
         "custom": { base_url: "", model: "" }
     };
 
+    // Ollama model aliases (same as backend)
+    const OLLAMA_MODEL_ALIASES = {
+        "lfm2.5": "lfm2.5:latest",
+        "gemma4": "gemma4:e4b",
+        "gpt-oss": "gpt-oss:20b",
+    };
+
     providerSelect.addEventListener("change", (e) => {
         const config = PROVIDER_CONFIGS[e.target.value];
         if (config) {
-            document.getElementById("ai-model").value = config.model;
-            document.getElementById("ai-base-url").value = config.base_url;
+            let model = config.model;
+
+            // Resolve Ollama model alias if needed
+            if (e.target.value === "ollama" && model in OLLAMA_MODEL_ALIASES) {
+                model = OLLAMA_MODEL_ALIASES[model];
+            }
+
+            document.getElementById("ai-model").value = model;
+            const baseUrlInput = document.getElementById("ai-base-url");
+            baseUrlInput.value = config.base_url;
+            // Only OpenAI should lock base_url; other providers (incl. Ollama) may need overrides.
+            baseUrlInput.disabled = (e.target.value === "openai");
         }
     });
-}
+    providerSelect.dispatchEvent(new Event("change"));
+};
 
 // ---------------------------------------------------------------------------
 // Scalar fields — Profile & Contact (data-path driven)

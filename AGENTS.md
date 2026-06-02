@@ -5,7 +5,7 @@ This project leverages both automated CI/CD and AI-assisted workflows to build, 
 ## Two Workflows
 
 - **CI/CD (Zero Setup)**: Push JSON changes to GitHub → PDF auto-generated via GitHub Actions. No local installation required.
-- **Local Web UI (Power User)**: Run `customizer/server.py` → Edit JSON visually, preview PDF in real-time, generate on-demand with full local control.
+- **Local Web UI (Power User)**: Run `bash install.sh` to set up all dependencies, then `customizer/server.py` → Edit JSON visually, preview PDF in real-time, generate on-demand with full local control.
 
 ## Core Architecture
 
