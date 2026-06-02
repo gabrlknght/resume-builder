@@ -237,7 +237,7 @@ async def tailor(request: Request):
     # Allow Ollama without API key
     api_key = config.get("api_key", "").strip()
     if not api_key:
-        env_key = f"{provider.upper()}_API_KEY"
+        env_key = "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
     
     if provider == "ollama":
