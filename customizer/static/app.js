@@ -111,13 +111,10 @@ function initAITailoring() {
             }
 
             document.getElementById("ai-model").value = model;
-            document.getElementById("ai-base-url").value = config.base_url;
-            // Disable base_url input for Ollama (use default)
-            if (e.target.value === "ollama") {
-                document.getElementById("ai-base-url").disabled = true;
-            } else if (e.target.value === "openai") {
-                document.getElementById("ai-base-url").disabled = true;
-            }
+            const baseUrlInput = document.getElementById("ai-base-url");
+            baseUrlInput.value = config.base_url;
+            // Only OpenAI should lock base_url; other providers (incl. Ollama) may need overrides.
+            baseUrlInput.disabled = (e.target.value === "openai");
         }
     });
 };
