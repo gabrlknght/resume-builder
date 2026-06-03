@@ -51,7 +51,7 @@ PROVIDER_CONFIGS = {
     "nvidia": {"base_url": "https://integrate.api.nvidia.com/v1"},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
     "ollama": {
-        "base_url": "http://localhost:11434/v1"
+        "base_url": "http://localhost:11434/"
     },
     "openai": {"base_url": None},  # Native OpenAI API
     "openrouter": {"base_url": "https://openrouter.ai/api/v1"},
@@ -61,7 +61,8 @@ PROVIDER_CONFIGS = {
 # Ollama model alias mapping (short names → full Ollama model IDs)
 OLLAMA_MODEL_ALIASES = {
     "lfm2.5": "lfm2.5:latest",
-    "gemma4": "gemma4:e4b",
+    "gemma4": "gemma4-opencode:latest",
+    "qwen3.5": "qwen3.5-opencode:latest",
     "gpt-oss": "gpt-oss-20b",
 }
 

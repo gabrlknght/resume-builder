@@ -90,7 +90,7 @@ function initAITailoring() {
         "cerebras": { base_url: "https://api.cerebras.ai/v1", model: "llama3.1-8b" },
         "nvidia": { base_url: "https://integrate.api.nvidia.com/v1", model: "moonshotai/kimi-k2.5" },
         "gemini": { base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.5-flash" },
-        "ollama": { base_url: "http://localhost:11434", model: "gemma4:e4b" },
+        "ollama": { base_url: "http://localhost:11434", model: "" },
         "openrouter": { base_url: "https://openrouter.ai/api/v1", model: "openrouter/free" },
         "openrouter_meta": { base_url: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct:free" },
         "custom": { base_url: "", model: "" }
@@ -103,25 +103,47 @@ function initAITailoring() {
         "qwen3.5": "qwen3.5-opencode:latest",
         "gpt-oss": "gpt-oss:20b",
     };
+
     providerSelect.addEventListener("change", (e) => {
-        const config = PROVIDER_CONFIGS[e.target.value];
+        const provider = e.target.value;
+        const config = PROVIDER_CONFIGS[provider];
+        const modelInput = document.getElementById("ai-model");
+        const baseUrlInput = document.getElementById("ai-base-url");
+        const datalist = document.getElementById("ollama-models-list");
+
         if (config) {
-            let model = config.model;
-
-            // Resolve Ollama model alias if needed
-            if (e.target.value === "ollama" && model in OLLAMA_MODEL_ALIASES) {
-                model = OLLAMA_MODEL_ALIASES[model];
-            }
-
-            document.getElementById("ai-model").value = model;
-            const baseUrlInput = document.getElementById("ai-base-url");
+            modelInput.value = config.model;
             baseUrlInput.value = config.base_url;
-            // Only OpenAI should lock base_url; other providers (incl. Ollama) may need overrides.
-            baseUrlInput.disabled = (e.target.value === "openai");
+        }
+
+        // Clear datalist for non-Ollama providers
+        if (datalist) datalist.innerHTML = "";
+
+        if (provider === "ollama") {
+            const ollamaBase = (baseUrlInput.value || "http://localhost:11434").replace(/\/+$/, "");
+            modelInput.placeholder = "Fetching models…";
+            fetch(`${ollamaBase}/api/tags`)
+                .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+                .then((data) => {
+                    const models = (data.models || []).map((m) => m.name).filter(Boolean);
+                    if (datalist) {
+                        datalist.innerHTML = models
+                            .map((m) => `<option value="${esc(m)}">`)  
+                            .join("");
+                    }
+                    if (models.length > 0 && !modelInput.value) {
+                        modelInput.value = models[0];
+                    }
+                    modelInput.placeholder = models.length ? "Select or type a model" : "No models found — is Ollama running?";
+                })
+                .catch(() => {
+                    modelInput.placeholder = "Could not reach Ollama at " + ollamaBase;
+                });
+        } else {
+            modelInput.placeholder = "e.g. gpt-4o-mini";
         }
     });
-    providerSelect.dispatchEvent(new Event("change"));
-};
+}
 
 // ---------------------------------------------------------------------------
 // Scalar fields — Profile & Contact (data-path driven)
