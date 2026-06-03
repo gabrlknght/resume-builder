@@ -445,6 +445,61 @@ button.loading {
     opacity: 0.4;
 }
 
+/* ---- History Dashboard ---- */
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.history-table th {
+    text-align: left;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.history-table td {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    word-break: break-word;
+}
+
+.history-table tr:hover td {
+    background: #0d0d0d;
+}
+
+.history-table .hired-yes {
+    color: #2ecc71;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.history-table .hired-no {
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.history-score {
+    font-weight: bold;
+}
+
+.history-score.score-high { color: #2ecc71; }
+.history-score.score-mid  { color: #f1c40f; }
+.history-score.score-low  { color: #e74c3c; }
+
+.history-pagination {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+    font-size: 11px;
+    color: var(--muted);
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
     .sidebar {

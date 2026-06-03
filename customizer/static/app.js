@@ -44,6 +44,9 @@ function initTabs() {
             btn.classList.add("active");
             document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
             document.getElementById("section-" + btn.dataset.tab).classList.add("active");
+            if (btn.dataset.tab === "history") {
+                loadHistoryDashboard(1);
+            }
         });
     });
 }
@@ -96,10 +99,10 @@ function initAITailoring() {
     // Ollama model aliases (same as backend)
     const OLLAMA_MODEL_ALIASES = {
         "lfm2.5": "lfm2.5:latest",
-        "gemma4": "gemma4:e4b",
+        "gemma4": "gemma4-opencode:latest",
+        "qwen3.5": "qwen3.5-opencode:latest",
         "gpt-oss": "gpt-oss:20b",
     };
-
     providerSelect.addEventListener("change", (e) => {
         const config = PROVIDER_CONFIGS[e.target.value];
         if (config) {
@@ -446,15 +449,30 @@ function collectPayload() {
 // API: Generate → Preview + Download
 // ---------------------------------------------------------------------------
 async function generatePDF() {
+    const companyInput = document.getElementById("ai-company");
+    const company = companyInput ? companyInput.value.trim() : "";
+    if (!company) {
+        toast("Please fill in the Prospective Company field before generating.", true);
+        // Switch to tailoring tab so the user sees the field
+        document.querySelectorAll("#sidebar button").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
+        const tailorBtn = document.querySelector("#sidebar button[data-tab='tailoring']");
+        if (tailorBtn) tailorBtn.classList.add("active");
+        document.getElementById("section-tailoring").classList.add("active");
+        if (companyInput) companyInput.focus();
+        return;
+    }
+
     const btn = document.getElementById("btn-generate");
     btn.classList.add("loading");
     btn.textContent = "GENERATING…";
 
     try {
+        const meta = { ...(lastTailoringMeta || {}), company };
         const res = await fetch("/api/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(collectPayload()),
+            body: JSON.stringify({ ...collectPayload(), _meta: meta }),
         });
 
         if (!res.ok) {
@@ -847,6 +865,14 @@ async function tailorResume() {
                 // Final event
                 if (event.stage === "final" && event.status === "complete") {
                     updateProgress(100, "Complete");
+                    // Capture tailoring metadata for next generate call
+                    if (event.data && event.data.jd_analysis) {
+                        lastTailoringMeta = {
+                            company: event.data.jd_analysis.company_name || "",
+                            job_title: event.data.jd_analysis.job_title || "",
+                            match_score: event.data.relevance || null,
+                        };
+                    }
                     applyTailoredData(event.data, false);
                     toast("RESUME TAILORED SUCCESSFULLY");
                 } else if (event.stage === "final" && event.status === "skip") {
@@ -868,6 +894,159 @@ async function tailorResume() {
             const fill = document.getElementById("progress-bar-fill");
             if (fill) fill.style.width = "0";
         }, 3000);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// History Dashboard
+// ---------------------------------------------------------------------------
+let historyPage = 1;
+let lastTailoringMeta = null; // {company, job_title, match_score} from last AI run
+
+async function loadHistoryDashboard(page) {
+    historyPage = page;
+    const container = document.getElementById("history-dashboard");
+    container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">LOADING…</div>`;
+    try {
+        const res = await fetch(`/api/history/dashboard?page=${page}&limit=25`);
+        if (!res.ok) throw new Error("Failed to load history");
+        const data = await res.json();
+        renderHistoryTable(data);
+    } catch (e) {
+        container.innerHTML = `<div class="preview-empty" style="padding:2rem 0; color:#e74c3c;">${esc(e.message)}</div>`;
+    }
+}
+
+function renderHistoryTable(data) {
+    const container = document.getElementById("history-dashboard");
+    if (!data.entries || data.entries.length === 0) {
+        container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">NO HISTORY YET — GENERATE A RESUME TO START TRACKING</div>`;
+        return;
+    }
+
+    const rows = data.entries.map((entry) => {
+        const date = entry.timestamp ? entry.timestamp.replace("T", " ").slice(0, 16) : "—";
+        const score = entry.match_score;
+        let scoreHtml = "—";
+        if (score !== null && score !== undefined) {
+            const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
+            scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
+        }
+        const hiredClass = entry.hired ? "hired-yes" : "hired-no";
+        const hiredLabel = entry.hired ? "✓ YES" : "✗ NO";
+        const pdfLink = entry.pdf_filename
+            ? `<a href="/api/history/file/${entry.id}/${entry.pdf_filename}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
+            : "—";
+
+        return `<tr>
+            <td style="white-space:nowrap;">${esc(date)}</td>
+            <td>${esc(entry.profile_name || "—")}</td>
+            <td>${esc(entry.company || "—")}</td>
+            <td>${esc(entry.job_title || "—")}</td>
+            <td>${scoreHtml}</td>
+            <td><span class="${hiredClass}" onclick="toggleHired('${esc(entry.id)}', ${entry.hired}, this)" title="Click to toggle">${hiredLabel}</span></td>
+            <td style="white-space:nowrap;">${pdfLink}</td>
+            <td style="white-space:nowrap;">
+                <button type="button" class="btn-secondary btn-small" onclick="restoreHistoryEntry('${esc(entry.id)}')">RESTORE</button>
+                <button type="button" class="btn-danger btn-small" style="margin-left:4px;" onclick="deleteHistoryEntry('${esc(entry.id)}')">DEL</button>
+            </td>
+        </tr>`;
+    }).join("");
+
+    const totalPages = Math.ceil(data.total / data.limit);
+    const paginationHtml = totalPages > 1 ? `
+        <div class="history-pagination">
+            <span>${data.total} total entries</span>
+            <button type="button" class="btn-secondary btn-small" onclick="loadHistoryDashboard(${historyPage - 1})" ${historyPage <= 1 ? "disabled" : ""}>← PREV</button>
+            <span style="color:var(--fg);">${historyPage} / ${totalPages}</span>
+            <button type="button" class="btn-secondary btn-small" onclick="loadHistoryDashboard(${historyPage + 1})" ${historyPage >= totalPages ? "disabled" : ""}>NEXT →</button>
+        </div>` : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
+
+    container.innerHTML = `
+        <div style="overflow-x:auto;">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>DATE</th>
+                        <th>NAME</th>
+                        <th>COMPANY</th>
+                        <th>JOB TITLE</th>
+                        <th>SCORE</th>
+                        <th>HIRED</th>
+                        <th>PDF</th>
+                        <th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        ${paginationHtml}`;
+}
+
+async function restoreHistoryEntry(entryId) {
+    try {
+        const res = await fetch(`/api/history/restore/${entryId}`, { method: "POST" });
+        if (!res.ok) throw new Error("Restore failed");
+        const data = await res.json();
+
+        // Merge into state
+        if (data.profile) Object.assign(state.profile, data.profile);
+        if (data.contact) Object.assign(state.contact, data.contact);
+        if (data.education) state.education = data.education;
+        if (data.experience) state.experience = data.experience;
+        if (data.projects) state.projects = data.projects;
+
+        // Re-render all form sections
+        populateScalarFields();
+        renderEducation();
+        renderExperience();
+        renderProjects();
+
+        // Switch to profile tab
+        const btns = document.querySelectorAll("#sidebar button");
+        btns.forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
+        const profileBtn = document.querySelector("#sidebar button[data-tab='profile']");
+        if (profileBtn) profileBtn.classList.add("active");
+        document.getElementById("section-profile").classList.add("active");
+
+        toast("RESTORED — REVIEW FIELDS & REGENERATE");
+    } catch (e) {
+        toast(e.message, true);
+    }
+}
+
+async function deleteHistoryEntry(entryId) {
+    if (!confirm(`Delete history entry "${entryId}"? This cannot be undone.`)) return;
+    try {
+        const res = await fetch("/api/history/entry", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder: entryId }),
+        });
+        if (!res.ok) throw new Error("Delete failed");
+        toast("ENTRY DELETED");
+        loadHistoryDashboard(historyPage);
+    } catch (e) {
+        toast(e.message, true);
+    }
+}
+
+async function toggleHired(entryId, currentVal, cellEl) {
+    const newVal = !currentVal;
+    try {
+        const res = await fetch("/api/history/hired", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder: entryId, hired: newVal }),
+        });
+        if (!res.ok) throw new Error("Update failed");
+        // Update cell in-place without a full reload
+        cellEl.className = newVal ? "hired-yes" : "hired-no";
+        cellEl.textContent = newVal ? "✓ YES" : "✗ NO";
+        cellEl.setAttribute("onclick", `toggleHired('${entryId}', ${newVal}, this)`);
+    } catch (e) {
+        toast(e.message, true);
     }
 }
 

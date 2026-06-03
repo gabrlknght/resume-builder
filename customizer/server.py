@@ -15,6 +15,7 @@ import sys
 import tempfile
 import shutil
 import re
+from datetime import datetime as dt_obj
 from pathlib import Path
 
 # Ensure customizer/ is on sys.path so `from pipeline import ...` works
@@ -51,6 +52,8 @@ SECTION_FILES = {
     "skills": "skills.json",
 }
 
+HISTORY_DIR = DATA_DIR / "history"
+
 # ---------------------------------------------------------------------------
 # pdflatex check
 # ---------------------------------------------------------------------------
@@ -85,6 +88,28 @@ def _safe_filename(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]+", "_", name).strip("_").lower()
 
 
+def _get_history_dir(dt, safe_name: str) -> Path:
+    """Return (and create) the timestamped folder for a history entry."""
+    ts = dt.strftime("%Y%m%d_%H%M%S")
+    folder = HISTORY_DIR / dt.strftime("%Y") / dt.strftime("%m") / f"{ts}_{safe_name}"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def _scan_history_entries() -> list:
+    """Walk HISTORY_DIR for _meta.json files and return list sorted newest-first."""
+    entries = []
+    if not HISTORY_DIR.exists():
+        return entries
+    for meta_file in HISTORY_DIR.rglob("_meta.json"):
+        try:
+            entries.append(json.loads(meta_file.read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, OSError):
+            continue
+    entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+    return entries
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -117,6 +142,7 @@ async def generate(request: Request):
         )
 
     payload = await request.json()
+    incoming_meta = payload.pop("_meta", {}) or {}
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
@@ -175,23 +201,128 @@ async def generate(request: Request):
                 },
             )
 
-        # Determine download filename
+        # Determine download filename + history folder
         profile = payload.get("profile", {})
         name = profile.get("name", "resume")
         safe_name = _safe_filename(name)
-        download_name = f"resume_{safe_name}.pdf"
+        now = dt_obj.now()
+        ts_str = now.strftime("%Y%m%d_%H%M%S")
+        pdf_filename = f"{safe_name}_{ts_str}.pdf"
 
-        # Move PDF to final name, clean up temp files
-        stable_pdf = PROJECT_ROOT / download_name
+        # Save to history folder
+        hist_dir = _get_history_dir(now, safe_name)
+        stable_pdf = hist_dir / pdf_filename
         shutil.move(str(pdf_file), str(stable_pdf))
+
+        # Write resume data snapshot
+        (hist_dir / "resume_data.json").write_text(
+            json.dumps(payload, indent=4, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        # Build relative entry id (YYYY/MM/folder_name)
+        entry_id = str(stable_pdf.parent.relative_to(HISTORY_DIR))
+
+        # Write metadata sidecar
+        meta = {
+            "id": entry_id,
+            "timestamp": now.isoformat(timespec="seconds"),
+            "profile_name": name,
+            "company": incoming_meta.get("company", ""),
+            "job_title": incoming_meta.get("job_title", ""),
+            "match_score": incoming_meta.get("match_score", None),
+            "hired": False,
+            "pdf_filename": pdf_filename,
+        }
+        (hist_dir / "_meta.json").write_text(
+            json.dumps(meta, indent=4, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        # Clean up pdflatex temp files
         for ext in (".tex", ".aux", ".log", ".out"):
             (PROJECT_ROOT / tex_name.replace(".tex", ext)).unlink(missing_ok=True)
 
     return FileResponse(
         path=str(stable_pdf),
-        filename=download_name,
+        filename=pdf_filename,
         media_type="application/pdf",
     )
+
+
+# ---------------------------------------------------------------------------
+# History Routes
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/history/dashboard")
+async def history_dashboard(page: int = 1, limit: int = 25):
+    """Return paginated history entries, newest first."""
+    entries = _scan_history_entries()
+    total = len(entries)
+    start = (page - 1) * limit
+    return JSONResponse({
+        "entries": entries[start: start + limit],
+        "total": total,
+        "page": page,
+        "limit": limit,
+    })
+
+
+@app.post("/api/history/restore/{entry_id:path}")
+async def history_restore(entry_id: str):
+    """Return the resume_data.json for the given history entry."""
+    data_file = HISTORY_DIR / entry_id / "resume_data.json"
+    if not data_file.exists():
+        return JSONResponse(status_code=404, content={"error": "Entry not found"})
+    return JSONResponse(json.loads(data_file.read_text(encoding="utf-8")))
+
+
+@app.delete("/api/history/entry")
+async def history_delete(request: Request):
+    """Delete an entire history entry folder."""
+    body = await request.json()
+    folder = body.get("folder", "")
+    if not folder:
+        return JSONResponse(status_code=400, content={"error": "folder is required"})
+    target = (HISTORY_DIR / folder).resolve()
+    # Safety: must remain under HISTORY_DIR
+    if not str(target).startswith(str(HISTORY_DIR.resolve())):
+        return JSONResponse(status_code=400, content={"error": "Invalid folder path"})
+    if not target.exists():
+        return JSONResponse(status_code=404, content={"error": "Entry not found"})
+    shutil.rmtree(str(target))
+    return {"status": "ok"}
+
+
+@app.patch("/api/history/hired")
+async def history_hired(request: Request):
+    """Toggle the hired status on a history entry."""
+    body = await request.json()
+    folder = body.get("folder", "")
+    hired = body.get("hired", False)
+    if not folder:
+        return JSONResponse(status_code=400, content={"error": "folder is required"})
+    meta_file = (HISTORY_DIR / folder / "_meta.json").resolve()
+    if not str(meta_file).startswith(str(HISTORY_DIR.resolve())):
+        return JSONResponse(status_code=400, content={"error": "Invalid folder path"})
+    if not meta_file.exists():
+        return JSONResponse(status_code=404, content={"error": "Entry not found"})
+    meta = json.loads(meta_file.read_text(encoding="utf-8"))
+    meta["hired"] = bool(hired)
+    meta_file.write_text(json.dumps(meta, indent=4, ensure_ascii=False), encoding="utf-8")
+    return {"status": "ok", "hired": meta["hired"]}
+
+
+@app.get("/api/history/file/{file_path:path}")
+async def history_file(file_path: str):
+    """Serve a PDF file from the history directory."""
+    target = (HISTORY_DIR / file_path).resolve()
+    if not str(target).startswith(str(HISTORY_DIR.resolve())):
+        return JSONResponse(status_code=400, content={"error": "Invalid path"})
+    if not target.exists() or not target.suffix == ".pdf":
+        return JSONResponse(status_code=404, content={"error": "File not found"})
+    return FileResponse(path=str(target), media_type="application/pdf")
 
 
 @app.post("/api/save")

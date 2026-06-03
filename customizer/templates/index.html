@@ -36,6 +36,7 @@
             <button data-tab="experience">EXPERIENCE</button>
             <button data-tab="projects">PROJECTS</button>
             <button data-tab="tailoring">TAILOR</button>
+            <button data-tab="history">HISTORY</button>
         </nav>
 
         <main class="editor-pane" id="form-root">
@@ -111,7 +112,11 @@
             <div class="section" id="section-tailoring">
                 <h2 class="section-title">AI TAILORING</h2>
                 <div class="field">
-                    <label for="ai-jd">JOB DESCRIPTION</label>
+                    <label for="ai-company">PROSPECTIVE COMPANY</label>
+                    <input type="text" id="ai-company" placeholder="e.g. Acme Corp">
+                </div>
+                <div class="field">
+                    <label for="ai-jd">PROSPECTIVE JOB DESCRIPTION</label>
                     <textarea id="ai-jd" placeholder="Paste the job description here..."
                         style="min-height: 150px;"></textarea>
                 </div>
@@ -158,6 +163,14 @@
                         <div id="progress-text" style="font-size: 11px; color: var(--muted); margin-top: 0.25rem;">
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- ============ HISTORY ============ -->
+            <div class="section" id="section-history">
+                <h2 class="section-title">HISTORY</h2>
+                <div id="history-dashboard">
+                    <div class="preview-empty" style="padding: 2rem 0;">CLICK A TAB ENTRY TO LOAD</div>
                 </div>
             </div>
 
