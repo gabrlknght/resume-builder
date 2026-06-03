@@ -947,7 +947,9 @@ function renderHistoryTable(data) {
     }
 
     const rows = data.entries.map((entry) => {
-        const date = entry.timestamp ? entry.timestamp.replace("T", " ").slice(0, 16) : "—";
+        const ts = entry.timestamp || "";
+        const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
+        const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
         const score = entry.match_score;
         let scoreHtml = "—";
         if (score !== null && score !== undefined) {
@@ -961,16 +963,20 @@ function renderHistoryTable(data) {
             : "—";
 
         return `<tr>
-            <td style="white-space:nowrap;">${esc(date)}</td>
-            <td>${esc(entry.profile_name || "—")}</td>
+            <td style="white-space:nowrap;">
+                <div style="line-height:1.05;">
+                    ${esc(datePart)}<br>
+                    ${timePart ? '<span style="color:var(--muted); font-size:11px;">' + esc(timePart) + '</span>' : ''}
+                </div>
+            </td>
             <td>${esc(entry.company || "—")}</td>
             <td>${esc(entry.job_title || "—")}</td>
             <td>${scoreHtml}</td>
             <td><span class="${hiredClass}" onclick="toggleHired('${esc(entry.id)}', ${entry.hired}, this)" title="Click to toggle">${hiredLabel}</span></td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">
-                <button type="button" class="btn-secondary btn-small" onclick="restoreHistoryEntry('${esc(entry.id)}')">RESTORE</button>
-                <button type="button" class="btn-danger btn-small" style="margin-left:4px;" onclick="deleteHistoryEntry('${esc(entry.id)}')">DEL</button>
+                    <button type="button" class="btn-secondary btn-small" title="Restore" onclick="restoreHistoryEntry('${esc(entry.id)}')">✅</button>
+                    <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" onclick="deleteHistoryEntry('${esc(entry.id)}')">❌</button>
             </td>
         </tr>`;
     }).join("");
@@ -990,7 +996,6 @@ function renderHistoryTable(data) {
                 <thead>
                     <tr>
                         <th>DATE</th>
-                        <th>NAME</th>
                         <th>COMPANY</th>
                         <th>JOB TITLE</th>
                         <th>SCORE</th>
