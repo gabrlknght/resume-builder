@@ -608,7 +608,11 @@ async def cl_history_dashboard(page: int = 1, limit: int = 25):
 @app.post("/api/cl-history/restore/{entry_id:path}")
 async def cl_history_restore(entry_id: str):
     """Return the cover_letter.json for the given CL history entry."""
-    data_file = CL_HISTORY_DIR / entry_id / "cover_letter.json"
+    entry_dir = (CL_HISTORY_DIR / entry_id).resolve()
+    if not str(entry_dir).startswith(str(CL_HISTORY_DIR.resolve())):
+        return JSONResponse(status_code=400, content={"error": "Invalid entry path"})
+
+    data_file = entry_dir / "cover_letter.json"
     if not data_file.exists():
         return JSONResponse(status_code=404, content={"error": "Entry not found"})
     return JSONResponse(json.loads(data_file.read_text(encoding="utf-8")))
