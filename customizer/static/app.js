@@ -1076,6 +1076,10 @@ function printCoverLetter(d) {
         .join("");
 
     const win = window.open("", "_blank");
+    if (!win) {
+        toast("Popup blocked — allow popups to print the cover letter", true);
+        return;
+    }
     win.document.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
