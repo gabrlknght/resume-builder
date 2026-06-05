@@ -19,11 +19,11 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import instructor
 import openai
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Eval-module imports
@@ -51,14 +51,14 @@ PROVIDER_CONFIGS = {
     "nvidia": {"base_url": "https://integrate.api.nvidia.com/v1"},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
     "ollama": {
-        "base_url": "http://localhost:11434/"
+        "base_url": "http://localhost:11434/v1"
     },
     "openai": {"base_url": None},  # Native OpenAI API
     "openrouter": {"base_url": "https://openrouter.ai/api/v1"},
     "mock": {}
 }
 
-# Ollama model alias mapping (short names → full Ollama model IDs)
+# Ollama model alias mapping (short names -> full Ollama model IDs)
 OLLAMA_MODEL_ALIASES = {
     "lfm2.5": "lfm2.5:latest",
     "gemma4": "gemma4-opencode:latest",
@@ -74,12 +74,11 @@ def get_instructor_client(config: dict):
     provider = config.get("provider", "openai")
     api_key = (config.get("api_key") or "").strip()
     base_url = (config.get("base_url") or "").strip()
-    
+
     # Use default base_url from PROVIDER_CONFIGS if not provided
     if not base_url:
         base_url = PROVIDER_CONFIGS.get(provider, {}).get("base_url")
-    
-    # Handle Ollama (localhost URL)
+
     resolved_base_url = base_url
     # Model alias resolution is handled by resolve_ollama_model() (applied before run_pipeline).
     # Ollama uses no auth by default; pass a placeholder key so the openai
@@ -175,6 +174,16 @@ class TailoredProfile(BaseModel):
     socials: Optional[dict] = None
     resume: Optional[dict] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_properties(cls, data: Any) -> Any:
+        """Some local models (e.g. gemma4) mirror the JSON Schema structure and
+        wrap output fields inside a 'properties' envelope.  Unwrap it so
+        Pydantic sees the fields at the expected root level."""
+        if isinstance(data, dict) and "properties" in data and isinstance(data["properties"], dict):
+            return data["properties"]
+        return data
+
     @field_validator("socials", "resume", mode="before")
     @classmethod
     def _parse_json_dicts(cls, v):
@@ -229,6 +238,24 @@ class ProjectList(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Cover Letter models
+# ---------------------------------------------------------------------------
+class CoverLetterOutput(BaseModel):
+    subject_line: str
+    salutation: str
+    opening_paragraph: str
+    body_paragraphs: list[str]
+    closing_paragraph: str
+    sign_off: str
+    improvements_from_prior: Optional[list[str]] = None
+
+    @field_validator("body_paragraphs", "improvements_from_prior", mode="before")
+    @classmethod
+    def _parse_json_lists(cls, v):
+        return _parse_if_json_string(v)
+
+
+# ---------------------------------------------------------------------------
 # SSE helper
 # ---------------------------------------------------------------------------
 def sse_event(data: dict) -> str:
@@ -253,7 +280,7 @@ def resolve_ollama_model(model_name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Stage 1: JD Analysis  
+# Stage 1: JD Analysis
 # ---------------------------------------------------------------------------
 STAGE1_SYSTEM = """You are an expert technical recruiter and hiring manager.
 Analyze the job description and extract structured requirements.
@@ -360,7 +387,12 @@ Rephrase the profile bio and title to better align with the target job descripti
 Preserve the candidate's name, avatar, socials, and contact info exactly.
 Keep the bio professional and concise. Do not invent experience.
 
-IMPORTANT: Use keywords from the job requirements to enhance relevance."""
+IMPORTANT: Use keywords from the job requirements to enhance relevance.
+
+OUTPUT FORMAT: Return a flat JSON object with fields at the root level.
+Do NOT wrap fields inside a "properties" key.
+Correct:   {"name": "...", "title": "...", "bio": "..."}
+Incorrect: {"properties": {"name": "...", "title": "...", "bio": "..."}}"""
 
 
 STAGE3_EXPERIENCE_SYSTEM = """You are an expert technical resume writer.
@@ -638,5 +670,163 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict):
                 msg = str(cause)
             else:
                 # Strip XML-ish tags from instructor error
+                msg = re.sub(r"<[^>]+>", " ", msg).strip()[:500]
+        yield sse_event({"status": "error", "message": msg})
+
+
+# ---------------------------------------------------------------------------
+# Cover Letter: system prompt & generator
+# ---------------------------------------------------------------------------
+COVER_LETTER_SYSTEM = """You are an expert career coach and professional writer specialising in targeted cover letters.
+
+Given the candidate's resume data, the analyzed job description, and optionally a prior cover letter,
+write a compelling, personalised cover letter.
+
+Rules:
+- 3-4 paragraphs: strong opening hook, relevant experience proof, value proposition, call-to-action close
+- Mirror ATS keywords from the JD naturally — never stuff them awkwardly
+- Highlight 2-3 specific, quantified achievements from the resume that directly address the role
+- Professional but authentic tone — avoid stiff boilerplate phrases like "I am writing to express my interest"
+- Opening: reference the specific role AND company; lead with a compelling hook
+- If a prior cover letter is provided: preserve the candidate's authentic voice but sharpen relevance,
+  fix weaknesses, and ensure all key JD requirements are addressed. List improvements in improvements_from_prior.
+- sign_off should be natural e.g. "Sincerely," or "Best regards,"
+
+Output must be a complete, ready-to-send cover letter split into the structured fields."""
+
+
+async def generate_cover_letter(
+    client,
+    model: str,
+    jd_text: str,
+    jd_analysis: JDAnalysis,
+    resume_data: dict,
+    prior_letter: Optional[str] = None,
+) -> CoverLetterOutput:
+    profile = resume_data.get("profile", {})
+    candidate_name = profile.get("name", "the candidate")
+    candidate_title = profile.get("title", "")
+    candidate_bio = profile.get("bio", "")
+
+    exp_lines: list[str] = []
+    for entry in resume_data.get("experience", {}).get("experience", []):
+        highlights = entry.get("details", [])[:2]
+        exp_lines.append(
+            f"{entry.get('role', '')} at {entry.get('company', '')}: {'; '.join(highlights)}"
+        )
+
+    prior_section = ""
+    if prior_letter and prior_letter.strip():
+        prior_section = (
+            "\n\nPRIOR COVER LETTER (use as stylistic basis — improve and tailor to this JD):\n"
+            + prior_letter.strip()
+        )
+
+    user_msg = (
+        f"Candidate: {candidate_name}, {candidate_title}\n"
+        f"Summary: {candidate_bio}\n\n"
+        f"Experience highlights:\n"
+        + "\n".join(f"- {e}" for e in exp_lines)
+        + f"\n\nTarget role: {jd_analysis.job_title} at {jd_analysis.company_name or 'the company'}\n"
+        f"Must-have requirements: {[r.skill for r in jd_analysis.requirements if r.priority == 'must_have'][:8]}\n"
+        f"Domain: {jd_analysis.domain}\n"
+        f"ATS keywords: {jd_analysis.ats_keywords[:15]}\n\n"
+        f"Job Description (excerpt):\n{jd_text[:2500]}"
+        + prior_section
+    )
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": COVER_LETTER_SYSTEM},
+            {"role": "user", "content": user_msg},
+        ],
+        response_model=CoverLetterOutput,
+        temperature=0.4,
+        max_retries=2,
+    )
+    return response
+
+
+async def run_cover_letter_pipeline(
+    client,
+    model: str,
+    jd_text: str,
+    resume_data: dict,
+    prior_letter: Optional[str] = None,
+):
+    try:
+        yield sse_event(
+            {"stage": 1, "status": "in_progress", "message": "Analyzing job description..."}
+        )
+        jd_analysis = await analyze_jd(client, jd_text, model)
+        yield sse_event(
+            {
+                "stage": 1,
+                "status": "complete",
+                "data": {
+                    "job_title": jd_analysis.job_title,
+                    "company": jd_analysis.company_name or "",
+                    "requirements_count": len(jd_analysis.requirements),
+                },
+            }
+        )
+
+        yield sse_event(
+            {"stage": 2, "status": "in_progress", "message": "Matching resume credentials to role..."}
+        )
+        match_report = compute_match_score(resume_data, jd_analysis)
+        yield sse_event(
+            {
+                "stage": 2,
+                "status": "complete",
+                "data": {
+                    "relevance": match_report.relevance_score,
+                    "matched_keywords": match_report.matched_keywords[:10],
+                },
+            }
+        )
+
+        stage3_msg = (
+            "Refining cover letter from prior draft..."
+            if prior_letter and prior_letter.strip()
+            else "Writing cover letter..."
+        )
+        yield sse_event({"stage": 3, "status": "in_progress", "message": stage3_msg})
+        cover_letter = await generate_cover_letter(
+            client, model, jd_text, jd_analysis, resume_data, prior_letter
+        )
+        yield sse_event({"stage": 3, "status": "complete"})
+
+        yield sse_event(
+            {
+                "stage": "final",
+                "status": "complete",
+                "data": {
+                    "subject_line": cover_letter.subject_line,
+                    "salutation": cover_letter.salutation,
+                    "opening_paragraph": cover_letter.opening_paragraph,
+                    "body_paragraphs": cover_letter.body_paragraphs,
+                    "closing_paragraph": cover_letter.closing_paragraph,
+                    "sign_off": cover_letter.sign_off,
+                    "improvements_from_prior": cover_letter.improvements_from_prior or [],
+                    "job_title": jd_analysis.job_title,
+                    "company": jd_analysis.company_name or "",
+                    "relevance": match_report.relevance_score,
+                    "candidate_name": resume_data.get("profile", {}).get("name", ""),
+                },
+            }
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        msg = str(e)
+        if "InstructorRetryException" in type(e).__name__ or "<failed_attempts>" in msg:
+            cause = e.__cause__
+            if cause:
+                msg = str(cause)
+            else:
                 msg = re.sub(r"<[^>]+>", " ", msg).strip()[:500]
         yield sse_event({"status": "error", "message": msg})

@@ -12,8 +12,10 @@ const state = JSON.parse(JSON.stringify(window.__DATA__));
 // Staged review state for AI tailoring
 let originalSnapshot = null;   // pre-tailoring state for Reset
 let pendingTailored = null;    // AI results awaiting user approval
-let currentPreviewTab = "pdf"; // "pdf" or "ai"
+let currentPreviewTab = "pdf"; // "pdf" | "ai" | "letter"
 let lastAiResultsHTML = "";    // persisted AI results HTML
+let coverLetterData = null;    // last generated cover letter data
+let lastCoverLetterHTML = "";  // persisted cover letter HTML
 
 // PDF preview state
 let pdfBlob = null;
@@ -30,7 +32,18 @@ document.addEventListener("DOMContentLoaded", () => {
     renderExperience();
     renderProjects();
     initTabs();
-    initAITailoring();
+    initProviderSelect({
+        providerId: "ai-provider",
+        modelId: "ai-model",
+        baseUrlId: "ai-base-url",
+        datalistId: "ollama-models-list",
+    });
+    initProviderSelect({
+        providerId: "cl-provider",
+        modelId: "cl-model",
+        baseUrlId: "cl-base-url",
+        datalistId: "cl-ollama-models-list",
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -47,6 +60,9 @@ function initTabs() {
             if (btn.dataset.tab === "history") {
                 loadHistoryDashboard(1);
             }
+            if (btn.dataset.tab === "clhistory") {
+                loadClHistoryDashboard(1);
+            }
         });
     });
 }
@@ -55,11 +71,13 @@ function switchPreviewTab(tab) {
     currentPreviewTab = tab;
     const tabPdf = document.getElementById("tab-pdf");
     const tabAi = document.getElementById("tab-ai");
+    const tabLetter = document.getElementById("tab-letter");
     const pageNav = document.getElementById("page-nav");
+
+    [tabPdf, tabAi, tabLetter].forEach((t) => t && t.classList.remove("active"));
 
     if (tab === "pdf") {
         tabPdf.classList.add("active");
-        tabAi.classList.remove("active");
         if (pdfBlob) {
             renderPDFPreview(pdfBlob);
         } else {
@@ -67,12 +85,16 @@ function switchPreviewTab(tab) {
             body.innerHTML = `<div class="preview-empty" id="preview-empty">CLICK GENERATE TO PREVIEW</div>`;
             if (pageNav) pageNav.style.display = "none";
         }
-    } else {
-        tabPdf.classList.remove("active");
-        tabAi.classList.add("active");
+    } else if (tab === "ai") {
+        if (tabAi) tabAi.classList.add("active");
         if (pageNav) pageNav.style.display = "none";
         const body = document.getElementById("preview-body");
         body.innerHTML = lastAiResultsHTML;
+    } else if (tab === "letter") {
+        if (tabLetter) tabLetter.classList.add("active");
+        if (pageNav) pageNav.style.display = "none";
+        const body = document.getElementById("preview-body");
+        body.innerHTML = lastCoverLetterHTML;
     }
 }
 
@@ -81,8 +103,17 @@ function showPreviewTabs() {
     if (tabsBar) tabsBar.style.display = "flex";
 }
 
-function initAITailoring() {
-    const providerSelect = document.getElementById("ai-provider");
+function showLetterTab() {
+    showPreviewTabs();
+    const tabLetter = document.getElementById("tab-letter");
+    if (tabLetter) tabLetter.style.display = "";
+}
+
+// ---------------------------------------------------------------------------
+// Provider select initialisation (shared between Tailor and Cover Letter tabs)
+// ---------------------------------------------------------------------------
+function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
+    const providerSelect = document.getElementById(providerId);
     if (!providerSelect) return;
 
     const PROVIDER_CONFIGS = {
@@ -107,9 +138,9 @@ function initAITailoring() {
     providerSelect.addEventListener("change", (e) => {
         const provider = e.target.value;
         const config = PROVIDER_CONFIGS[provider];
-        const modelInput = document.getElementById("ai-model");
-        const baseUrlInput = document.getElementById("ai-base-url");
-        const datalist = document.getElementById("ollama-models-list");
+        const modelInput = document.getElementById(modelId);
+        const baseUrlInput = document.getElementById(baseUrlId);
+        const datalist = document.getElementById(datalistId);
 
         if (config) {
             modelInput.value = config.model;
@@ -128,7 +159,7 @@ function initAITailoring() {
                     const models = (data.models || []).map((m) => m.name).filter(Boolean);
                     if (datalist) {
                         datalist.innerHTML = models
-                            .map((m) => `<option value="${esc(m)}">`)  
+                            .map((m) => `<option value="${esc(m)}">`)
                             .join("");
                     }
                     if (models.length > 0 && !modelInput.value) {
@@ -920,10 +951,426 @@ async function tailorResume() {
 }
 
 // ---------------------------------------------------------------------------
+// Cover Letter Generator
+// ---------------------------------------------------------------------------
+function updateClProgress(pct, message) {
+    const container = document.getElementById("cl-progress");
+    const fill = document.getElementById("cl-progress-bar");
+    const text = document.getElementById("cl-progress-text");
+    if (container) container.style.display = "block";
+    if (fill) fill.style.width = pct + "%";
+    if (text) text.textContent = message;
+}
+
+function renderCoverLetterPreview(data) {
+    coverLetterData = data;
+
+    const paragraphs = [
+        data.opening_paragraph,
+        ...(data.body_paragraphs || []),
+        data.closing_paragraph,
+    ]
+        .filter(Boolean)
+        .map((p) => `<p class="cl-paragraph">${esc(p)}</p>`)
+        .join("");
+
+    const improvementsHtml =
+        data.improvements_from_prior && data.improvements_from_prior.length > 0
+            ? `<div class="cl-improvements">
+                <div class="cl-improvements-title">IMPROVEMENTS FROM PRIOR LETTER</div>
+                <ul>${data.improvements_from_prior.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>
+               </div>`
+            : "";
+
+    const relScore = data.relevance;
+    const relColor =
+        typeof relScore === "number" && relScore >= 7
+            ? "#2ecc71"
+            : typeof relScore === "number" && relScore >= 4
+            ? "#f1c40f"
+            : "#e74c3c";
+
+    lastCoverLetterHTML = `
+        <div class="cl-preview">
+            <div class="cl-meta">
+                <span class="cl-job-badge">${esc(data.job_title || "")}${data.company ? " &middot; " + esc(data.company) : ""}</span>
+                ${relScore !== undefined ? `<span class="cl-score-badge" style="color:${relColor}; border-color:${relColor};">JD MATCH: ${relScore}/10</span>` : ""}
+            </div>
+            <div class="cl-subject">${esc(data.subject_line || "")}</div>
+            <div class="cl-letter">
+                <div class="cl-salutation">${esc(data.salutation || "Dear Hiring Manager,")}</div>
+                ${paragraphs}
+                <div class="cl-signoff">
+                    <div>${esc(data.sign_off || "Sincerely,")}</div>
+                    <div class="cl-candidate-name">${esc(data.candidate_name || "")}</div>
+                </div>
+            </div>
+            ${improvementsHtml}
+            <div class="cl-actions">
+                <button type="button" class="btn-secondary btn-small" onclick="copyCoverLetter()">COPY TEXT</button>
+                <button type="button" class="btn-secondary btn-small" onclick="downloadCoverLetter()">DOWNLOAD .TXT</button>
+                <button type="button" class="btn-secondary btn-small" onclick="printCoverLetter()">PRINT / PDF</button>
+            </div>
+        </div>`;
+
+    showLetterTab();
+    switchPreviewTab("letter");
+}
+
+function buildCoverLetterPlainText() {
+    if (!coverLetterData) return "";
+    const d = coverLetterData;
+    const parts = [
+        d.subject_line || "",
+        "",
+        d.salutation || "Dear Hiring Manager,",
+        "",
+        d.opening_paragraph || "",
+        ...(d.body_paragraphs || []).map((p) => "\n" + p),
+        "",
+        d.closing_paragraph || "",
+        "",
+        d.sign_off || "Sincerely,",
+        d.candidate_name || "",
+    ];
+    return parts.join("\n");
+}
+
+function copyCoverLetter() {
+    const text = buildCoverLetterPlainText();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(
+        () => toast("COVER LETTER COPIED"),
+        () => toast("Copy failed — check browser permissions", true)
+    );
+}
+
+function downloadCoverLetter() {
+    const text = buildCoverLetterPlainText();
+    if (!text) return;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const company = (coverLetterData && coverLetterData.company) || "company";
+    const role = (coverLetterData && coverLetterData.job_title) || "role";
+    a.download = `cover_letter_${company}_${role}.txt`
+        .replace(/[^a-z0-9_.-]/gi, "_")
+        .toLowerCase();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+function printCoverLetter(d) {
+    if (!d) d = coverLetterData;
+    if (!d) return;
+    const paragraphs = [
+        d.opening_paragraph,
+        ...(d.body_paragraphs || []),
+        d.closing_paragraph,
+    ]
+        .filter(Boolean)
+        .map((p) => `<p>${esc(p)}</p>`)
+        .join("");
+
+    const win = window.open("", "_blank");
+    win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cover Letter${d.company ? " — " + esc(d.company) : ""}</title>
+<style>
+  @page { margin: 2.5cm; }
+  body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.7; color: #000; max-width: 700px; margin: 0 auto; }
+  .subject { font-size: 10pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1.8em; color: #444; }
+  .salutation { margin-bottom: 1em; }
+  p { margin: 0 0 1em 0; text-align: justify; }
+  .signoff { margin-top: 2em; }
+  .name { font-weight: bold; margin-top: 0.3em; }
+  @media print { button { display: none; } }
+</style>
+</head>
+<body>
+<div class="subject">${esc(d.subject_line || "")}</div>
+<div class="salutation">${esc(d.salutation || "Dear Hiring Manager,")}</div>
+${paragraphs}
+<div class="signoff">
+  <div>${esc(d.sign_off || "Sincerely,")}</div>
+  <div class="name">${esc(d.candidate_name || "")}</div>
+</div>
+</body>
+</html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+}
+
+async function printClHistoryEntry(entryId) {
+    try {
+        const res = await fetch(`/api/cl-history/restore/${entryId}`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed to load cover letter");
+        printCoverLetter(await res.json());
+    } catch (e) {
+        toast(e.message, true);
+    }
+}
+
+async function generateCoverLetter() {
+    const jd = (document.getElementById("cl-jd").value || "").trim();
+    if (!jd) {
+        toast("Please provide a Job Description", true);
+        return;
+    }
+
+    const priorLetter = (document.getElementById("cl-prior").value || "").trim();
+    const provider = document.getElementById("cl-provider").value;
+    const model = document.getElementById("cl-model").value;
+    const baseUrl = document.getElementById("cl-base-url").value;
+    const apiKey = document.getElementById("cl-api-key").value;
+
+    const btn = document.getElementById("btn-cover-letter");
+    btn.classList.add("loading");
+    btn.textContent = "GENERATING… (MAY TAKE A MINUTE)";
+    updateClProgress(0, "Starting…");
+
+    const stageMap = {
+        1: { pct: 20, label: "Stage 1/3: Analyzing job description..." },
+        2: { pct: 50, label: "Stage 2/3: Matching resume credentials..." },
+        3: { pct: 80, label: "Stage 3/3: Writing cover letter..." },
+    };
+
+    try {
+        const payload = {
+            jd,
+            prior_letter: priorLetter || "",
+            config: { provider, model, base_url: baseUrl, api_key: apiKey },
+            data: collectPayload(),
+        };
+
+        const res = await fetch("/api/cover-letter", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+            let errorMsg = "Cover letter generation failed";
+            try {
+                const err = await res.json();
+                errorMsg = err.error || errorMsg;
+            } catch (_) {}
+            throw new Error(errorMsg);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split("\n");
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith("data: ")) continue;
+                let event;
+                try {
+                    event = JSON.parse(trimmed.slice("data: ".length));
+                } catch (_) {
+                    continue;
+                }
+
+                if (event.status === "error") {
+                    updateClProgress(0, "Error: " + (event.message || "Unknown error"));
+                    throw new Error(event.message || "Pipeline error");
+                }
+
+                if (event.status === "in_progress") {
+                    const info = stageMap[event.stage];
+                    if (info) updateClProgress(info.pct, event.message || info.label);
+                    continue;
+                }
+
+                if (event.status === "complete" && event.stage !== "final") {
+                    const info = stageMap[event.stage];
+                    if (info) updateClProgress(info.pct, info.label.replace("...", " \u2713"));
+                    continue;
+                }
+
+                if (event.stage === "final" && event.status === "complete") {
+                    updateClProgress(100, "Complete");
+                    renderCoverLetterPreview(event.data);
+                    saveCoverLetterToHistory(event.data);
+                    toast("COVER LETTER GENERATED");
+                }
+            }
+        }
+    } catch (e) {
+        toast(e.message, true);
+    } finally {
+        btn.classList.remove("loading");
+        btn.textContent = "GENERATE COVER LETTER (AI)";
+        setTimeout(() => {
+            const container = document.getElementById("cl-progress");
+            if (container) container.style.display = "none";
+            const fill = document.getElementById("cl-progress-bar");
+            if (fill) fill.style.width = "0";
+        }, 3000);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // History Dashboard
 // ---------------------------------------------------------------------------
 let historyPage = 1;
 let lastTailoringMeta = null; // {company, job_title, match_score} from last AI run
+
+// ---------------------------------------------------------------------------
+// Cover Letter History
+// ---------------------------------------------------------------------------
+let clHistoryPage = 1;
+
+async function saveCoverLetterToHistory(data) {
+    try {
+        await fetch("/api/cl-history/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cover_letter: data }),
+        });
+    } catch (_) {
+        // silent — history save is non-critical
+    }
+}
+
+async function loadClHistoryDashboard(page) {
+    clHistoryPage = page;
+    const container = document.getElementById("cl-history-dashboard");
+    container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">LOADING…</div>`;
+    try {
+        const res = await fetch(`/api/cl-history/dashboard?page=${page}&limit=25`);
+        if (!res.ok) throw new Error("Failed to load cover letter history");
+        const data = await res.json();
+        renderClHistoryTable(data);
+    } catch (e) {
+        container.innerHTML = `<div class="preview-empty" style="padding:2rem 0; color:#e74c3c;">${esc(e.message)}</div>`;
+    }
+}
+
+function renderClHistoryTable(data) {
+    const container = document.getElementById("cl-history-dashboard");
+    if (!data.entries || data.entries.length === 0) {
+        container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">NO COVER LETTERS YET — GENERATE ONE TO START TRACKING</div>`;
+        return;
+    }
+
+    const rows = data.entries.map((entry) => {
+        const ts = entry.timestamp || "";
+        const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
+        const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
+        const score = entry.relevance_score;
+        let scoreHtml = "—";
+        if (score !== null && score !== undefined) {
+            const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
+            scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
+        }
+        const pdfLink = `<button type="button" class="btn-secondary btn-small" onclick="printClHistoryEntry('${esc(entry.id)}')" title="Open print/PDF dialog">PDF</button>`;
+        const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
+
+        return `<tr>
+            <td style="white-space:nowrap;">
+                <div style="line-height:1.05;">
+                    ${esc(datePart)}<br>
+                    ${timePart ? '<span style="color:var(--muted); font-size:11px;">' + esc(timePart) + '</span>' : ''}
+                </div>
+            </td>
+            <td>${esc(entry.company || "—")}</td>
+            <td>${esc(entry.job_title || "—")}</td>
+            <td>${scoreHtml}</td>
+            <td style="white-space:nowrap;">${pdfLink}</td>
+            <td style="white-space:nowrap;">${txtLink}</td>
+            <td style="white-space:nowrap;">
+                <button type="button" class="btn-secondary btn-small" title="Restore to editor" onclick="restoreClHistoryEntry('${esc(entry.id)}')">✅</button>
+                <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" onclick="deleteClHistoryEntry('${esc(entry.id)}')">❌</button>
+            </td>
+        </tr>`;
+    }).join("");
+
+    const totalPages = Math.ceil(data.total / data.limit);
+    const paginationHtml = totalPages > 1 ? `
+        <div class="history-pagination">
+            <span>${data.total} total entries</span>
+            <button type="button" class="btn-secondary btn-small" onclick="loadClHistoryDashboard(${clHistoryPage - 1})" ${clHistoryPage <= 1 ? "disabled" : ""}>← PREV</button>
+            <span style="color:var(--fg);">${clHistoryPage} / ${totalPages}</span>
+            <button type="button" class="btn-secondary btn-small" onclick="loadClHistoryDashboard(${clHistoryPage + 1})" ${clHistoryPage >= totalPages ? "disabled" : ""}>NEXT →</button>
+        </div>` : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
+
+    container.innerHTML = `
+        <div style="overflow-x:auto;">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>DATE</th>
+                        <th>COMPANY</th>
+                        <th>JOB TITLE</th>
+                        <th>SCORE</th>
+                        <th>PDF</th>
+                        <th>FILE</th>
+                        <th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        ${paginationHtml}`;
+}
+
+async function restoreClHistoryEntry(entryId) {
+    try {
+        const res = await fetch(`/api/cl-history/restore/${entryId}`, { method: "POST" });
+        if (!res.ok) throw new Error("Restore failed");
+        const data = await res.json();
+
+        // Navigate to cover letter tab and show the letter in the preview
+        const btns = document.querySelectorAll("#sidebar button");
+        btns.forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
+        const clBtn = document.querySelector("#sidebar button[data-tab='coverletter']");
+        if (clBtn) clBtn.classList.add("active");
+        document.getElementById("section-coverletter").classList.add("active");
+
+        // Pre-fill JD field if available
+        const jdEl = document.getElementById("cl-jd");
+        if (jdEl && data.jd_text) jdEl.value = data.jd_text;
+
+        // Re-render the letter in the preview pane
+        renderCoverLetterPreview(data);
+        toast("COVER LETTER RESTORED — REVIEW IN PREVIEW");
+    } catch (e) {
+        toast(e.message, true);
+    }
+}
+
+async function deleteClHistoryEntry(entryId) {
+    if (!confirm(`Delete cover letter entry "${entryId}"? This cannot be undone.`)) return;
+    try {
+        const res = await fetch("/api/cl-history/entry", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder: entryId }),
+        });
+        if (!res.ok) throw new Error("Delete failed");
+        toast("ENTRY DELETED");
+        loadClHistoryDashboard(clHistoryPage);
+    } catch (e) {
+        toast(e.message, true);
+    }
+}
 
 async function loadHistoryDashboard(page) {
     historyPage = page;
