@@ -36,6 +36,10 @@
             <button data-tab="experience">EXPERIENCE</button>
             <button data-tab="projects">PROJECTS</button>
             <button data-tab="tailoring">TAILOR</button>
+            <button data-tab="coverletter">COVER LETTER</button>
+            <div class="sidebar-group-label">HISTORY</div>
+            <button data-tab="history" class="sidebar-sub">R&#233;SUM&#233;S</button>
+            <button data-tab="clhistory" class="sidebar-sub">COVER LETTERS</button>
         </nav>
 
         <main class="editor-pane" id="form-root">
@@ -111,7 +115,11 @@
             <div class="section" id="section-tailoring">
                 <h2 class="section-title">AI TAILORING</h2>
                 <div class="field">
-                    <label for="ai-jd">JOB DESCRIPTION</label>
+                    <label for="ai-company">PROSPECTIVE COMPANY</label>
+                    <input type="text" id="ai-company" placeholder="e.g. Acme Corp">
+                </div>
+                <div class="field">
+                    <label for="ai-jd">PROSPECTIVE JOB DESCRIPTION</label>
                     <textarea id="ai-jd" placeholder="Paste the job description here..."
                         style="min-height: 150px;"></textarea>
                 </div>
@@ -133,7 +141,8 @@
                         </div>
                         <div class="field">
                             <label for="ai-model">MODEL</label>
-                            <input type="text" id="ai-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini">
+                            <input type="text" id="ai-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini" list="ollama-models-list" autocomplete="off">
+                            <datalist id="ollama-models-list"></datalist>
                         </div>
                     </div>
                     <div class="field-row">
@@ -161,6 +170,83 @@
                 </div>
             </div>
 
+            <!-- ============ COVER LETTER ============ -->
+            <div class="section" id="section-coverletter">
+                <h2 class="section-title">COVER LETTER GENERATOR</h2>
+                <div class="field">
+                    <label for="cl-jd">PROSPECTIVE JOB DESCRIPTION</label>
+                    <textarea id="cl-jd" placeholder="Paste the full job description here..."
+                        style="min-height: 140px;"></textarea>
+                </div>
+                <div class="field">
+                    <label for="cl-prior">PRIOR COVER LETTER (OPTIONAL)</label>
+                    <textarea id="cl-prior"
+                        placeholder="Paste a previous cover letter to use as a stylistic basis and improve upon..."
+                        style="min-height: 120px;"></textarea>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">LLM CONFIGURATION (BYOK)</div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="cl-provider">PROVIDER</label>
+                            <select id="cl-provider">
+                                <option value="openai">OpenAI (Default)</option>
+                                <option value="cerebras">Cerebras</option>
+                                <option value="nvidia">Nvidia</option>
+                                <option value="gemini">Gemini API</option>
+                                <option value="ollama">Ollama (Local Models)</option>
+                                <option value="openrouter">OpenRouter (Free)</option>
+                                <option value="openrouter_meta">OpenRouter (Meta Llama)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="cl-model">MODEL</label>
+                            <input type="text" id="cl-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini"
+                                list="cl-ollama-models-list" autocomplete="off">
+                            <datalist id="cl-ollama-models-list"></datalist>
+                        </div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="cl-base-url">BASE URL (OPTIONAL)</label>
+                            <input type="text" id="cl-base-url" placeholder="Leave empty for provider default">
+                        </div>
+                        <div class="field">
+                            <label for="cl-api-key">API KEY (OPTIONAL)</label>
+                            <input type="password" id="cl-api-key" placeholder="Overrides .env">
+                        </div>
+                    </div>
+                </div>
+                <div class="array-controls">
+                    <button type="button" class="btn-secondary" id="btn-cover-letter"
+                        onclick="generateCoverLetter()" style="width: 100%; margin-top: 1rem;">GENERATE COVER LETTER (AI)</button>
+                    <div id="cl-progress" style="display: none; margin: 0.5rem 0;">
+                        <div style="background: var(--border); border-radius: 4px; height: 4px; overflow: hidden;">
+                            <div id="cl-progress-bar"
+                                style="background: var(--fg); height: 100%; width: 0; transition: width 0.3s;"></div>
+                        </div>
+                        <div id="cl-progress-text" style="font-size: 11px; color: var(--muted); margin-top: 0.25rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ HISTORY ============ -->
+            <div class="section" id="section-history">
+                <h2 class="section-title">RESUME HISTORY</h2>
+                <div id="history-dashboard">
+                    <div class="preview-empty" style="padding: 2rem 0;">CLICK A TAB ENTRY TO LOAD</div>
+                </div>
+            </div>
+
+            <!-- ============ CL HISTORY ============ -->
+            <div class="section" id="section-clhistory">
+                <h2 class="section-title">COVER LETTER HISTORY</h2>
+                <div id="cl-history-dashboard">
+                    <div class="preview-empty" style="padding: 2rem 0;">CLICK A TAB ENTRY TO LOAD</div>
+                </div>
+            </div>
+
         </main>
 
         <!-- ============ PDF PREVIEW ============ -->
@@ -179,6 +265,8 @@
                         onclick="switchPreviewTab('pdf')">PDF</button>
                     <button type="button" class="preview-tab" id="tab-ai" onclick="switchPreviewTab('ai')">AI
                         Results</button>
+                    <button type="button" class="preview-tab" id="tab-letter"
+                        onclick="switchPreviewTab('letter')" style="display:none">LETTER</button>
                 </div>
             </div>
             <div class="preview-body" id="preview-body">
