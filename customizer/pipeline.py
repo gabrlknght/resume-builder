@@ -249,6 +249,28 @@ class CoverLetterOutput(BaseModel):
     sign_off: str
     improvements_from_prior: Optional[list[str]] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_envelope(cls, data: Any) -> Any:
+        """Handle two common local-model output mistakes:
+        1. 'properties' wrapping — model mirrors the JSON Schema structure.
+        2. 'thought' leaking — model emits its chain-of-thought as the root key
+           instead of the actual fields (seen in gemma4 retry attempts).
+        In both cases, unwrap to the real content dict if found inside."""
+        if not isinstance(data, dict):
+            return data
+        # Unwrap {"properties": {...actual fields...}}
+        if "properties" in data and isinstance(data["properties"], dict):
+            return data["properties"]
+        # Strip {"thought": "...", ...} — drop the thought key and keep the rest,
+        # or if thought is the ONLY key and its value is a string (pure leakage),
+        # there's nothing to recover — let Pydantic raise the normal error.
+        if "thought" in data:
+            cleaned = {k: v for k, v in data.items() if k != "thought"}
+            if cleaned:
+                return cleaned
+        return data
+
     @field_validator("body_paragraphs", "improvements_from_prior", mode="before")
     @classmethod
     def _parse_json_lists(cls, v):
@@ -692,7 +714,13 @@ Rules:
   fix weaknesses, and ensure all key JD requirements are addressed. List improvements in improvements_from_prior.
 - sign_off should be natural e.g. "Sincerely," or "Best regards,"
 
-Output must be a complete, ready-to-send cover letter split into the structured fields."""
+Output must be a complete, ready-to-send cover letter split into the structured fields.
+
+OUTPUT FORMAT: Return a flat JSON object with fields at the root level.
+Do NOT wrap fields inside a "properties" key. Do NOT include a "thought" or reasoning key.
+Correct:   {"subject_line": "...", "salutation": "...", "opening_paragraph": "..."}
+Incorrect: {"properties": {"subject_line": "..."}}
+Incorrect: {"thought": "...", "subject_line": "..."}"""
 
 
 async def generate_cover_letter(
