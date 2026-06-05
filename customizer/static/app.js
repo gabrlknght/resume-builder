@@ -152,8 +152,9 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
 
         if (provider === "ollama") {
             const ollamaBase = (baseUrlInput.value || "http://localhost:11434").replace(/\/+$/, "");
+            const tagsBase = ollamaBase.replace(/\/v1$/, "");
             modelInput.placeholder = "Fetching models…";
-            fetch(`${ollamaBase}/api/tags`)
+            fetch(`${tagsBase}/api/tags`)
                 .then((r) => r.ok ? r.json() : Promise.reject(r.status))
                 .then((data) => {
                     const models = (data.models || []).map((m) => m.name).filter(Boolean);
