@@ -287,7 +287,11 @@ async def history_dashboard(page: int = 1, limit: int = 25):
 @app.post("/api/history/restore/{entry_id:path}")
 async def history_restore(entry_id: str):
     """Return the resume_data.json for the given history entry."""
-    data_file = HISTORY_DIR / entry_id / "resume_data.json"
+    entry_dir = (HISTORY_DIR / entry_id).resolve()
+    if not str(entry_dir).startswith(str(HISTORY_DIR.resolve())):
+        return JSONResponse(status_code=400, content={"error": "Invalid entry path"})
+
+    data_file = entry_dir / "resume_data.json"
     if not data_file.exists():
         return JSONResponse(status_code=404, content={"error": "Entry not found"})
     return JSONResponse(json.loads(data_file.read_text(encoding="utf-8")))
