@@ -1537,7 +1537,7 @@ async function toggleHired(entryId, currentVal, cellEl) {
 // Stats Dashboard
 // ---------------------------------------------------------------------------
 let statsChart = null;
-let statsPeriod = "annual";
+let statsPeriod = "weekly";
 let statsType = "all";
 
 async function loadStatsDashboard() {

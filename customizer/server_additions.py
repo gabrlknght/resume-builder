@@ -115,7 +115,7 @@ def _aggregate_history(period: str, entry_type: str = "all") -> dict:
 
 def add_stats_routes(app):
     @app.get("/api/history/stats")
-    async def history_stats(period: str = "annual", type: str = "all"):
+    async def history_stats(period: str = "weekly", type: str = "all"):
         if period not in _PERIOD_WINDOWS:
             return JSONResponse(
                 status_code=400,
