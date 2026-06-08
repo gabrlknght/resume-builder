@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -35,7 +34,6 @@ try:
     from metrics import (
         immutable_field_violations,
         run_all_metrics,
-        flatten_resume_to_text,
     )  # noqa: E402
 
     HAS_EVAL_METRICS = True

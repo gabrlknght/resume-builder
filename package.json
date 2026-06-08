@@ -1,0 +1,19 @@
+{
+  "name": "resume-builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:js && npm run build:css",
+    "build:js": "esbuild customizer/static/app.js --minify --outfile=customizer/static/app.min.js",
+    "build:css": "esbuild customizer/static/style.css --minify --outfile=customizer/static/style.min.css",
+    "lint": "npm run lint:js && npm run lint:css && ruff check .",
+    "lint:js": "eslint customizer/static/app.js",
+    "lint:css": "stylelint customizer/static/style.css"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "stylelint": "^16.0.0",
+    "stylelint-config-standard": "^36.0.0"
+  }
+}

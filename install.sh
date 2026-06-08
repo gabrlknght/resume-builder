@@ -128,9 +128,25 @@ $PIP_INSTALL -r requirements.txt
 success "Python dependencies installed."
 
 # ---------------------------------------------------------------------------
-# 2. TeX Live (for local PDF compilation)
+# 2. Node.js build (minified static assets)
 # ---------------------------------------------------------------------------
-header "Step 2: TeX Live (Local PDF Compilation)"
+header "Step 2: Node.js Build (Minified Static Assets)"
+
+if command -v npm &>/dev/null; then
+    info "Installing Node dev dependencies and building minified assets..."
+    npm ci --silent
+    npm run build
+    success "Static assets minified (app.min.js, style.min.css)."
+else
+    warn "npm not found — skipping asset minification."
+    warn "Install Node.js to enable minified production builds: https://nodejs.org/"
+    warn "Then run: npm ci && npm run build"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. TeX Live (for local PDF compilation)
+# ---------------------------------------------------------------------------
+header "Step 3: TeX Live (Local PDF Compilation)"
 
 if $SKIP_TEX; then
     info "Skipping TeX Live installation (--no-tex)."
@@ -177,7 +193,7 @@ fi
 # ---------------------------------------------------------------------------
 # 3. Ollama (Local LLM — no API key needed)
 # ---------------------------------------------------------------------------
-header "Step 3: Ollama — Local LLM (Optional)"
+header "Step 4: Ollama — Local LLM (Optional)"
 echo "Ollama lets you run the AI tailoring pipeline 100% offline."
 echo "No API key required. Recommended model: gemma4:e4b (~5 GB)"
 echo ""
@@ -209,7 +225,7 @@ fi
 # 4. Pull Ollama model
 # ---------------------------------------------------------------------------
 if [[ "${OLLAMA_INSTALLED:-false}" == "true" ]]; then
-    header "Step 4: Pull Ollama Model"
+    header "Step 5: Pull Ollama Model"
     echo "Available recommended models:"
     echo "  gemma4:e4b      — Default, best quality for resume tailoring (~5 GB)"
     echo "  llama3.2        — Lightweight option (~2 GB)"
@@ -234,14 +250,14 @@ if [[ "${OLLAMA_INSTALLED:-false}" == "true" ]]; then
         info "Skipping model pull. Pull later with: ollama pull ${OLLAMA_MODEL}"
     fi
 else
-    header "Step 4: Pull Ollama Model"
+    header "Step 5: Pull Ollama Model"
     info "Ollama not installed — skipping model pull."
 fi
 
 # ---------------------------------------------------------------------------
 # 5. Optional: API key environment variables
 # ---------------------------------------------------------------------------
-header "Step 5: Cloud Provider API Keys (Optional)"
+header "Step 6: Cloud Provider API Keys (Optional)"
 echo "If you plan to use cloud providers (OpenAI, Cerebras, Gemini, etc.), you can"
 echo "set your API keys as environment variables so you don't paste them in the UI"
 echo "every time. Add these to your shell profile (~/.bashrc or ~/.zshrc):"

@@ -10,11 +10,11 @@ Usage:
 """
 
 import json
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
-import shutil
-import re
 from datetime import datetime as dt_obj
 from pathlib import Path
 
@@ -54,6 +54,9 @@ SECTION_FILES = {
 
 HISTORY_DIR = DATA_DIR / "history"
 CL_HISTORY_DIR = DATA_DIR / "cl-history"
+
+STATIC_DIR = CUSTOMIZER_DIR / "static"
+USE_MINIFIED = (STATIC_DIR / "app.min.js").exists()
 
 # ---------------------------------------------------------------------------
 # pdflatex check
@@ -137,7 +140,7 @@ async def index(request: Request):
     return templates.TemplateResponse(
         request,
         "index.html",
-        context={"data": data, "data_json": json.dumps(data)},
+        context={"data": data, "data_json": json.dumps(data), "use_minified": USE_MINIFIED},
     )
 
 
@@ -366,9 +369,8 @@ async def tailor(request: Request):
     Accepts JD text, provider config, and current resume data.
     """
     import os
-    from pipeline import resolve_ollama_model
 
-    from pipeline import get_instructor_client, run_pipeline, sse_event
+    from pipeline import get_instructor_client, resolve_ollama_model, run_pipeline
 
     payload = await request.json()
     jd = payload.get("jd", "")
@@ -383,13 +385,13 @@ async def tailor(request: Request):
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
     base_url = config.get("base_url", "").strip()
-    
+
     # Allow Ollama without API key
     api_key = config.get("api_key", "").strip()
     if not api_key:
         env_key = "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
-    
+
     if provider == "ollama":
         # Ensure the custom base_url includes /v1 (Ollama's OpenAI-compatible path).
         # If the user left it blank, pipeline.py falls back to PROVIDER_CONFIGS which
@@ -453,6 +455,7 @@ async def cover_letter_endpoint(request: Request):
     Accepts JD text, optional prior cover letter, provider config, and resume data.
     """
     import os
+
     from pipeline import (
         get_instructor_client,
         resolve_ollama_model,
@@ -651,6 +654,7 @@ async def cl_history_delete(request: Request):
 # Stats / trendline routes (defined in server_additions.py)
 # ---------------------------------------------------------------------------
 from server_additions import add_stats_routes  # noqa: E402
+
 add_stats_routes(app)
 
 if __name__ == "__main__":

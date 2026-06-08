@@ -202,6 +202,7 @@ button:active {
     gap: 0.5rem;
 }
 
+/* stylelint-disable-next-line no-descending-specificity */
 .preview-header button {
     font-size: 11px;
     padding: 2px 6px;
@@ -306,6 +307,12 @@ textarea {
     font-size: inherit;
 }
 
+textarea {
+    resize: vertical;
+    min-height: 60px;
+    line-height: 1.5;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -316,12 +323,6 @@ textarea:focus {
 select option {
     background: #000;
     color: #fff;
-}
-
-textarea {
-    resize: vertical;
-    min-height: 60px;
-    line-height: 1.5;
 }
 
 .field-row {
@@ -402,6 +403,7 @@ textarea {
     font-size: 11px;
 }
 
+/* stylelint-disable-next-line no-descending-specificity */
 .tech-tag button {
     border: none;
     background: none;
@@ -518,7 +520,7 @@ button.loading {
 }
 
 /* ---- Responsive ---- */
-@media (max-width: 768px) {
+@media (width <= 768px) {
     .sidebar {
         width: 120px;
         min-width: 120px;
@@ -669,7 +671,7 @@ button.loading {
     margin-bottom: 1.5rem;
 }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
     .stats-summary { grid-template-columns: repeat(2, 1fr); }
 }
 

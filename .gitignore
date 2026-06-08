@@ -12,3 +12,10 @@ data/
 
 # Local apps
 .opencode
+
+# Node
+node_modules/
+
+# Build artifacts
+customizer/static/app.min.js
+customizer/static/style.min.css

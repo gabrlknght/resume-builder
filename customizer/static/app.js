@@ -3,6 +3,7 @@
    Tab switching, dynamic arrays, form serialization,
    pdf.js preview, API calls for generate & save.
    ----------------------------------------------------------- */
+/* eslint-disable no-unused-vars */ // functions called from HTML onclick attributes
 
 // ---------------------------------------------------------------------------
 // State — hydrated from server-rendered window.__DATA__
@@ -966,7 +967,7 @@ async function tailorResume() {
             try {
                 const err = await res.json();
                 errorMsg = err.error || errorMsg;
-            } catch (e) { }
+            } catch { /* ignore JSON parse error — errorMsg stays as fallback */ }
             throw new Error(errorMsg);
         }
 
@@ -1257,7 +1258,7 @@ async function generateCoverLetter() {
             try {
                 const err = await res.json();
                 errorMsg = err.error || errorMsg;
-            } catch (_) {}
+            } catch { /* ignore JSON parse error — errorMsg stays as fallback */ }
             throw new Error(errorMsg);
         }
 
