@@ -57,11 +57,15 @@ function initTabs() {
             btn.classList.add("active");
             document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
             document.getElementById("section-" + btn.dataset.tab).classList.add("active");
+            document.querySelector(".layout").classList.toggle("no-preview", btn.dataset.tab === "stats");
             if (btn.dataset.tab === "history") {
                 loadHistoryDashboard(1);
             }
             if (btn.dataset.tab === "clhistory") {
                 loadClHistoryDashboard(1);
+            }
+            if (btn.dataset.tab === "stats") {
+                loadStatsDashboard();
             }
         });
     });
@@ -1528,6 +1532,125 @@ async function toggleHired(entryId, currentVal, cellEl) {
         toast(e.message, true);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Stats Dashboard
+// ---------------------------------------------------------------------------
+let statsChart = null;
+let statsPeriod = "annual";
+let statsType = "all";
+
+async function loadStatsDashboard() {
+    const container = document.getElementById("stats-dashboard");
+    container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">LOADING...</div>`;
+    try {
+        const res = await fetch(`/api/history/stats?period=${statsPeriod}&type=${statsType}`);
+        if (!res.ok) throw new Error("Failed to load stats");
+        renderStatsDashboard(await res.json());
+    } catch (e) {
+        container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">${esc(e.message)}</div>`;
+    }
+}
+
+function renderStatsDashboard(data) {
+    const container = document.getElementById("stats-dashboard");
+    const hitRate = data.submission_count > 0
+        ? Math.round((data.hired_count / data.submission_count) * 100)
+        : 0;
+
+    const periodBtns = ["weekly", "monthly", "annual"].map(p =>
+        `<button class="btn-secondary btn-small stats-toggle${statsPeriod === p ? " active" : ""}"
+                 onclick="setStatsPeriod('${p}')">${p.toUpperCase()}</button>`
+    ).join("");
+
+    const typeBtns = [["all", "ALL"], ["resume", "RESUMES"], ["cover_letter", "COVER LETTERS"]].map(([val, label]) =>
+        `<button class="btn-secondary btn-small stats-toggle${statsType === val ? " active" : ""}"
+                 onclick="setStatsType('${val}')">${label}</button>`
+    ).join("");
+
+    container.innerHTML = `
+        <div class="stats-controls">
+            <div class="stats-toggle-group">${periodBtns}</div>
+            <div class="stats-toggle-group">${typeBtns}</div>
+        </div>
+        <div class="stats-summary">
+            <div class="stats-card"><div class="stats-card-value">${data.submission_count}</div><div class="stats-card-label">SUBMISSIONS</div></div>
+            <div class="stats-card"><div class="stats-card-value">${data.hired_count}</div><div class="stats-card-label">HIRED</div></div>
+            <div class="stats-card"><div class="stats-card-value">${data.pending_count}</div><div class="stats-card-label">PENDING</div></div>
+            <div class="stats-card"><div class="stats-card-value">${hitRate}%</div><div class="stats-card-label">HIT RATE</div></div>
+        </div>
+        <div class="stats-chart-wrap"><canvas id="stats-chart"></canvas></div>`;
+
+    if (statsChart) { statsChart.destroy(); statsChart = null; }
+
+    if (data.series.length === 0) {
+        document.querySelector(".stats-chart-wrap").innerHTML =
+            `<div class="preview-empty" style="height:100%;display:flex;align-items:center;justify-content:center;">NO DATA FOR THIS PERIOD</div>`;
+        return;
+    }
+
+    statsChart = new Chart(document.getElementById("stats-chart").getContext("2d"), {
+        data: {
+            labels: data.series.map(s => s.label),
+            datasets: [
+                {
+                    type: "bar",
+                    label: "Total",
+                    data: data.series.map(s => s.total),
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                    borderColor: "rgba(255,255,255,0.35)",
+                    borderWidth: 1,
+                },
+                {
+                    type: "line",
+                    label: "Hired",
+                    data: data.series.map(s => s.hired),
+                    borderColor: "#fff",
+                    backgroundColor: "transparent",
+                    pointBackgroundColor: "#fff",
+                    pointRadius: 4,
+                    tension: 0.35,
+                    borderWidth: 2,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: "#888", font: { family: "JetBrains Mono", size: 11 } } },
+                tooltip: {
+                    backgroundColor: "#111",
+                    titleColor: "#fff",
+                    bodyColor: "#888",
+                    borderColor: "#333",
+                    borderWidth: 1,
+                    callbacks: {
+                        afterBody: (items) => {
+                            const idx = items[0].dataIndex;
+                            const s = data.series[idx];
+                            return [`Pending: ${s.pending}`];
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    ticks: { color: "#888", font: { family: "JetBrains Mono", size: 10 } },
+                    grid: { color: "#1a1a1a" },
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: "#888", font: { family: "JetBrains Mono", size: 10 }, precision: 0 },
+                    grid: { color: "#1a1a1a" },
+                },
+            },
+        },
+    });
+}
+
+function setStatsPeriod(p) { statsPeriod = p; loadStatsDashboard(); }
+function setStatsType(t) { statsType = t; loadStatsDashboard(); }
 
 // ---------------------------------------------------------------------------
 // Toast

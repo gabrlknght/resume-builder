@@ -63,3 +63,23 @@ GitHub Actions (`.github/workflows/build-resume.yml`) auto-generates PDFs on eve
 3. Runs `scripts/render_resume.py` to generate LaTeX
 4. Compiles LaTeX to PDF via `xu-cheng/latex-action`
 5. Creates/updates a "latest" release with the PDF
+
+## Edit Protocol
+- Before editing any file, read its current contents first
+- Make only one logical change per tool call — never batch multiple edits
+- After each edit, re-read the file to verify it looks correct before continuing
+- If an edit produces unexpected output, stop and report — do not attempt to self-correct more than once
+- Never attempt to fix a broken edit by making another edit — ask the user instead
+
+## File Writing Rules
+- When writing or modifying JSON files, always use Python via bash:
+  python3 -c "import json; data = {...}; open('file.json','w').write(json.dumps(data, indent=2))"
+- Never use bash heredocs for JSON — they corrupt nesting and brackets
+- Never use the write tool for JSON files
+- For any other file type, prefer the write tool over heredocs
+
+## Hard Stop Rules
+- If a file write or edit fails twice, STOP COMPLETELY
+- Do not attempt a third approach
+- Output the intended file contents as a code block in chat and wait for user instruction
+- Never narrate your own failure — report it once, then stop

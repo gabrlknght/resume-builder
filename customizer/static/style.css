@@ -643,3 +643,67 @@ button.loading {
     padding-top: 0.25rem;
     border-top: 1px solid var(--border);
 }
+
+/* ---- Stats Dashboard ---- */
+.stats-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.stats-toggle-group {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.stats-toggle.active {
+    background: var(--fg);
+    color: var(--bg);
+}
+
+.stats-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 700px) {
+    .stats-summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+.stats-card {
+    border: 1px solid var(--border);
+    padding: 1rem;
+    text-align: center;
+}
+
+.stats-card-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--fg);
+}
+
+.stats-card-label {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    letter-spacing: 0.08em;
+}
+
+.stats-chart-wrap {
+    position: relative;
+    height: 400px;
+    border: 1px solid var(--border);
+    padding: 1rem;
+}
+
+/* Hide preview pane when stats tab is active */
+.layout.no-preview .preview-pane {
+    display: none;
+}
+
+.layout.no-preview .editor-pane {
+    border-right: none;
+}

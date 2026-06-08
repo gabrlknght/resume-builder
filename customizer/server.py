@@ -645,6 +645,14 @@ async def cl_history_delete(request: Request):
         return JSONResponse(status_code=404, content={"error": "Entry not found"})
     shutil.rmtree(str(target))
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Stats / trendline routes (defined in server_additions.py)
+# ---------------------------------------------------------------------------
+from server_additions import add_stats_routes  # noqa: E402
+add_stats_routes(app)
+
 if __name__ == "__main__":
     if not HAS_PDFLATEX:
         print("\033[33m[WARNING] pdflatex not found. PDF generation will fail.\033[0m")

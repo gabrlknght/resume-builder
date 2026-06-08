@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/7.0.0/diff.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -40,6 +41,7 @@
             <div class="sidebar-group-label">HISTORY</div>
             <button data-tab="history" class="sidebar-sub">R&#233;SUM&#233;S</button>
             <button data-tab="clhistory" class="sidebar-sub">COVER LETTERS</button>
+            <button data-tab="stats" class="sidebar-sub">STATS</button>
         </nav>
 
         <main class="editor-pane" id="form-root">
@@ -243,6 +245,14 @@
             <div class="section" id="section-clhistory">
                 <h2 class="section-title">COVER LETTER HISTORY</h2>
                 <div id="cl-history-dashboard">
+                    <div class="preview-empty" style="padding: 2rem 0;">CLICK A TAB ENTRY TO LOAD</div>
+                </div>
+            </div>
+
+            <!-- ============ STATS ============ -->
+            <div class="section" id="section-stats">
+                <h2 class="section-title">SUBMISSION STATS</h2>
+                <div id="stats-dashboard">
                     <div class="preview-empty" style="padding: 2rem 0;">CLICK A TAB ENTRY TO LOAD</div>
                 </div>
             </div>

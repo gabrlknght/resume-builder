@@ -145,5 +145,26 @@
   \small{\textit{For more projects, visit: \href{((= profile.resume.website + "\#projects" =))}{((= profile.resume.website =))}}}
   \vspace{-4pt}
 
+%-----------SKILLS-----------
+\section{Technical Skills}
+\begin{tabularx}{\textwidth}{@{} X X @{}}
+(( for i in range(0, skills|length, 2) ))
+  \textbf{((= skills[i].category =))} & (( if i+1 < skills|length ))\textbf{((= skills[i+1].category =))}(( endif )) \\
+  \begin{itemize}[leftmargin=0.15in, label={}, itemsep=-2pt, topsep=0pt]
+  (( for item in skills[i].items ))
+    \item \small{((= item | latex_escape =))}
+  (( endfor ))
+  \end{itemize}
+  &
+  (( if i+1 < skills|length ))
+  \begin{itemize}[leftmargin=0.15in, label={}, itemsep=-2pt, topsep=0pt]
+  (( for item in skills[i+1].items ))
+    \item \small{((= item | latex_escape =))}
+  (( endfor ))
+  \end{itemize}
+  (( endif )) \\
+(( endfor ))
+\end{tabularx}
+
 %-------------------------------------------
 \end{document}
