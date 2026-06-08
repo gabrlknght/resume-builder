@@ -166,9 +166,9 @@ def load_all_configs(data_dir: Path) -> dict:
     if "projects_data" in context and "projects" in context["projects_data"]:
         context["projects"] = context["projects_data"]["projects"]
     
-    # Skills: skills_data.categories -> skills
-    if "skills_data" in context and "categories" in context["skills_data"]:
-        context["skills"] = context["skills_data"]["categories"]
+    # Skills: skills_data.skills -> skills
+    if "skills_data" in context and "skills" in context["skills_data"]:
+        context["skills"] = context["skills_data"]["skills"]
     
     # Education: education_data.education -> education
     if "education_data" in context and "education" in context["education_data"]:

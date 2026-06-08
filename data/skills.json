@@ -1,0 +1,81 @@
+{
+    "skills": [
+        {
+            "category": "Frontend Development",
+            "items": [
+                "React.js",
+                "Next.js (SSR/SSG)",
+                "TypeScript",
+                "Tailwind CSS",
+                "Redux / Context API"
+            ]
+        },
+        {
+            "category": "Backend & API Development",
+            "items": [
+                "Node.js / Express.js",
+                "Python",
+                "GraphQL / RESTful APIs",
+                "Microservices Architecture"
+            ]
+        },
+        {
+            "category": "Database & Data Layer",
+            "items": [
+                "PostgreSQL / MySQL",
+                "MongoDB / Firebase",
+                "Redis (In-Memory Caching)",
+                "Data Modeling & Schema Design"
+            ]
+        },
+        {
+            "category": "Cloud Engineering & DevOps",
+            "items": [
+                "Docker / Kubernetes",
+                "CI/CD (GitHub Actions)",
+                "AWS Lambda (Serverless)",
+                "Infrastructure as Code (IaC)",
+                "New Relic / Uptime Robot",
+                "Git / Version Control"
+            ]
+        },
+        {
+            "category": "Cloud Platforms & Hosting",
+            "items": [
+                "Amazon Web Services (AWS)",
+                "Google Cloud Platform (GCP)",
+                "Microsoft Azure",
+                "Vercel / Cloudflare",
+                "DigitalOcean / WP Engine / Acquia"
+            ]
+        },
+        {
+            "category": "AI/ML & Automation",
+            "items": [
+                "Prompt Engineering",
+                "Agentic Workflow Design",
+                "Model Fine-Tuning & Integration",
+                "Web Scraping & Automation (Python)",
+                "Local / Private Model Deployment"
+            ]
+        },
+        {
+            "category": "Web & System Architecture",
+            "items": [
+                "WordPress Ecosystem (VIP, WP Engine)",
+                "Network Security (SSL/TLS)",
+                "System Hardening & Maintenance",
+                "Backup & Sync Strategy"
+            ]
+        },
+        {
+            "category": "Consulting & Communication",
+            "items": [
+                "Technical Documentation",
+                "Live Training (Webinars, Workshops)",
+                "Stakeholder Presentations",
+                "Project Onboarding & Offboarding"
+            ]
+        }
+    ]
+}

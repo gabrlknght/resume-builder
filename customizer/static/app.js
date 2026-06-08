@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderEducation();
     renderExperience();
     renderProjects();
+    renderSkills();
     initTabs();
     initProviderSelect({
         providerId: "ai-provider",
@@ -491,6 +492,92 @@ function removeTech(projIndex, techIndex) {
 }
 
 // ---------------------------------------------------------------------------
+// Skills
+// ---------------------------------------------------------------------------
+function renderSkills() {
+    const list = document.getElementById("skills-list");
+    list.innerHTML = "";
+    const sk = state.skills || (state.skills = { skills: [] });
+    const items = sk.skills || (sk.skills = []);
+    items.forEach((entry, i) => {
+        list.appendChild(createSkillCategoryEntry(entry, i));
+    });
+}
+
+function createSkillCategoryEntry(entry, index) {
+    const div = document.createElement("div");
+    div.className = "array-entry";
+
+    const itemTagsHtml = (entry.items || [])
+        .map(
+            (item, ii) =>
+                `<span class="tech-tag">${esc(item)}<button type="button" onclick="removeSkillItem(${index}, ${ii})">×</button></span>`
+        )
+        .join("");
+
+    div.innerHTML = `
+        <div class="array-entry-header">
+            <span class="array-entry-number">#${index + 1}</span>
+            <button type="button" class="btn-danger btn-small" onclick="removeSkillCategory(${index})">REMOVE</button>
+        </div>
+        <div class="field">
+            <label>CATEGORY</label>
+            <input type="text" value="${esc(entry.category || "")}" data-skill-cat="${index}">
+        </div>
+        <div class="field-group">
+            <div class="field-group-title">ITEMS</div>
+            <div class="tech-tags" id="skill-items-${index}">${itemTagsHtml}</div>
+            <div class="tech-add">
+                <input type="text" id="skill-input-${index}" placeholder="Add skill">
+                <button type="button" class="btn-secondary btn-small" onclick="addSkillItem(${index})">ADD</button>
+            </div>
+        </div>
+    `;
+
+    div.querySelector(`[data-skill-cat="${index}"]`).addEventListener("input", (e) => {
+        state.skills.skills[index].category = e.target.value;
+    });
+
+    const skillInput = div.querySelector(`#skill-input-${index}`);
+    if (skillInput) {
+        skillInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                addSkillItem(index);
+            }
+        });
+    }
+
+    return div;
+}
+
+function addSkillCategory() {
+    if (!state.skills) state.skills = { skills: [] };
+    if (!state.skills.skills) state.skills.skills = [];
+    state.skills.skills.push({ category: "", items: [] });
+    renderSkills();
+}
+
+function removeSkillCategory(index) {
+    state.skills.skills.splice(index, 1);
+    renderSkills();
+}
+
+function addSkillItem(catIndex) {
+    const input = document.getElementById("skill-input-" + catIndex);
+    const val = input.value.trim();
+    if (!val) return;
+    state.skills.skills[catIndex].items.push(val);
+    input.value = "";
+    renderSkills();
+}
+
+function removeSkillItem(catIndex, itemIndex) {
+    state.skills.skills[catIndex].items.splice(itemIndex, 1);
+    renderSkills();
+}
+
+// ---------------------------------------------------------------------------
 // Payload
 // ---------------------------------------------------------------------------
 function collectPayload() {
@@ -500,6 +587,7 @@ function collectPayload() {
         education: state.education || { education: [] },
         experience: state.experience || { experience: [] },
         projects: state.projects || { projects: [] },
+        skills: state.skills || { skills: [] },
     };
 }
 
@@ -1478,12 +1566,14 @@ async function restoreHistoryEntry(entryId) {
         if (data.education) state.education = data.education;
         if (data.experience) state.experience = data.experience;
         if (data.projects) state.projects = data.projects;
+        if (data.skills) state.skills = data.skills;
 
         // Re-render all form sections
         populateScalarFields();
         renderEducation();
         renderExperience();
         renderProjects();
+        renderSkills();
 
         // Switch to profile tab
         const btns = document.querySelectorAll("#sidebar button");

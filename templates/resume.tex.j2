@@ -149,7 +149,7 @@
 \section{Technical Skills}
 \begin{tabularx}{\textwidth}{@{} X X @{}}
 (( for i in range(0, skills|length, 2) ))
-  \textbf{((= skills[i].category =))} & (( if i+1 < skills|length ))\textbf{((= skills[i+1].category =))}(( endif )) \\
+  \textbf{((= skills[i].category | latex_escape =))} & (( if i+1 < skills|length ))\textbf{((= skills[i+1].category | latex_escape =))}(( endif )) \\
   \begin{itemize}[leftmargin=0.15in, label={}, itemsep=-2pt, topsep=0pt]
   (( for item in skills[i].items ))
     \item \small{((= item | latex_escape =))}
