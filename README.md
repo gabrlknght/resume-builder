@@ -1,6 +1,6 @@
 # Automated Resume Builder
 
-Manage your professional profile via JSON and get a high-quality LaTeX resume PDF automatically. 
+Manage your professional profile via JSON and get a high-quality LaTeX resume PDF automatically.
 
 Two workflows available:
 - **CI/CD (Zero Setup)**: Push to GitHub → PDF auto-generated. No local installation required.
@@ -21,7 +21,7 @@ Two workflows available:
    ```bash
    bash install.sh
    ```
-2. **Run the customizer**:
+2. **Start the server**:
    ```bash
    uv run python customizer/server.py  # or: python3 customizer/server.py
    ```
@@ -37,13 +37,57 @@ Two workflows available:
 
 ## Features
 
-- **Local Web UI**: A minimalist, built-in Customizer UI lets you edit JSON data effortlessly and preview the generated PDF in real-time.
+- **Local Web UI**: A minimalist Customizer UI lets you edit JSON data and preview the generated PDF in real-time.
 - **AI-Tailored Resumes (Multi-Stage Pipeline)**: Tailor your resume to any job description using a 4-stage pipeline — JD Analysis, Match & Score, Section Tailoring, and Validation. Supports OpenAI, OpenRouter, Cerebras, Gemini, NVIDIA, and **local models via Ollama** with BYOK. Streams real-time progress via SSE, shows visual diffs, relevance scoring, and evaluation metrics (alignment, content preservation, hallucination detection).
+- **Cover Letter Generation**: AI-powered cover letter writer with its own dedicated history and management tab.
 - **Local LLM Support**: Run the tailoring pipeline entirely offline using [Ollama](https://ollama.com) — no API key required.
+- **Resume & Cover Letter History**: Every generated resume and cover letter is saved automatically. Restore any past version, mark entries as hired, and delete old ones from a paginated dashboard.
+- **Hiring Stats Dashboard**: Track your job application activity over time — submission counts, hired count, pending count, and hit rate, broken down by period (weekly / monthly / annual) with a bar chart.
+- **Skills Management**: Add, edit, and organize your skill categories directly in the UI — no JSON editing required.
 - **JSON-based Source of Truth**: Manage all your data (profile, experience, education, skills, projects) in structured JSON files.
 - **LaTeX Professionalism**: Utilizes a professional LaTeX template with Jinja2 rendering for a premium look.
 - **Automated CI/CD**: GitHub Actions automatically compiles your LaTeX source into a PDF on every push to `main`.
 - **Evaluation Framework**: Built-in `eval-module` with Pydantic schemas, quality metrics (alignment, preservation, hallucination detection), and golden test cases for regression testing.
+
+## History
+
+Every time you generate a resume or cover letter, the output is automatically saved under `data/history/` (resumes) and `data/cl-history/` (cover letters). Access both dashboards from the sidebar under the **HISTORY** section.
+
+### Resume History
+- **Paginated table** of past submissions — company name, date, and PDF link.
+- **Restore**: Load any past resume's data back into the editor with one click (✅).
+- **Hired toggle**: Click the hired status cell on any row to flip it between hired and pending. Use this to track which applications resulted in offers.
+- **Delete**: Remove an entry and its stored files permanently.
+
+### Cover Letter History
+- Same layout as resume history, with a download link for the saved `.txt` file.
+- Restore loads the cover letter back into the preview panel and switches to the Cover Letter tab automatically.
+
+## Skills Management
+
+The **SKILLS** tab lets you manage your `data/skills.json` directly from the UI without touching the file manually.
+
+- **Add a category**: Click "Add Category" to create a new skill group (e.g. "Languages", "Frameworks").
+- **Add items**: Type into the input on any category row and press Enter or click "Add" to append individual skills.
+- **Remove items or categories**: Click the × next to any item or the delete button on a category row.
+- Changes are saved with the rest of your profile data when you generate a new resume.
+
+## Hiring Stats
+
+The **STATS** tab (under HISTORY in the sidebar) shows a visual breakdown of your job application activity derived from your history entries.
+
+| Metric | Description |
+|---|---|
+| **Submissions** | Total entries in the selected period |
+| **Hired** | Entries marked as hired |
+| **Pending** | Submissions not yet marked hired |
+| **Hit Rate** | `hired / submissions × 100%` |
+
+**Filters:**
+- **Period**: Weekly (last 7 days, bucketed by day), Monthly (last 30 days, bucketed by ISO week), Annual (last 365 days, bucketed by calendar month). Defaults to weekly.
+- **Type**: All, Resumes only, or Cover Letters only.
+
+A bar chart renders the series data for the selected period and type.
 
 ## Server Configuration
 
@@ -108,7 +152,7 @@ Run the entire tailoring pipeline **100% offline** — no API key, no internet r
    ```bash
    ollama serve
    ```
-4. Select **"Ollama (Local)"** in the UI — no API key needed.
+4. Select **"Ollama (Local)"** in the UI — no API key needed. You can also pick from available local models via the dropdown.
 
 ### Ollama Host & Port
 
@@ -141,13 +185,18 @@ Any full Ollama model ID (e.g. `llama3.2`, `mistral:latest`) also works — just
 
 ## JSON Data Structure
 
-The data files in `data/` directory:
-- `profile.json`: Name, title, bio, and social links.
-- `experience.json`: Professional work history.
-- `education.json`: Academic background.
-- `skills.json`: Categorized technical skills.
-- `projects.json`: Highlighted projects.
-- `contact.json`: Contact information and location.
+All resume data lives in the `data/` directory:
+
+| File | Contents |
+|---|---|
+| `profile.json` | Name, title, bio, and social links |
+| `experience.json` | Professional work history |
+| `education.json` | Academic background |
+| `skills.json` | Categorized technical skills |
+| `projects.json` | Highlighted projects |
+| `contact.json` | Contact information and location |
+
+History is stored automatically under `data/history/` (resumes) and `data/cl-history/` (cover letters) — these directories are git-ignored by default.
 
 ## Local Command Line (Optional)
 
@@ -160,7 +209,7 @@ pdflatex resume.tex
 ## Accessing Your PDF (CI/CD)
 
 Once you push to GitHub, the CI/CD pipeline auto-generates the PDF:
-1.  Checking the [**Latest Release**](https://github.com/jangwanAnkit/resume-builder/releases/download/latest/resume.pdf) directly.
-2.  Navigating to the **"Releases"** section on the right side of your GitHub repository.
-3.  Downloading the `resume.pdf` asset from the **"Latest"** tag.
-4. You can check the **"Actions"** tab to see the build progress and logs.
+1. Check the [**Latest Release**](https://github.com/jangwanAnkit/resume-builder/releases/download/latest/resume.pdf) directly.
+2. Navigate to the **"Releases"** section on the right side of your GitHub repository.
+3. Download the `resume.pdf` asset from the **"Latest"** tag.
+4. Check the **"Actions"** tab to see the build progress and logs.
