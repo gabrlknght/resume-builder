@@ -135,7 +135,7 @@
   \resumeSubHeadingListStart
 (( for project in projects[:4] ))
     \resumeProjectHeading
-      {\textbf{((= project.title =))} $|$ \emph{((= project.technologies | join_tech =))}}{((= project.status | capitalize =))}
+      {\textbf{((= project.title | latex_escape =))} $|$ \emph{((= project.technologies | join_tech =))}}{((= project.status | capitalize =))}
       \resumeItemListStart
         \resumeItem{((= project.description | latex_escape =))}
       \resumeItemListEnd

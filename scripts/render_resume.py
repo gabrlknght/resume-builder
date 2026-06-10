@@ -84,7 +84,7 @@ def linkedin_username(url: str) -> str:
 
 
 def join_tech(technologies: list) -> str:
-    """Join technology list into comma-separated string."""
+    """Join technology list into a LaTeX-safe comma-separated string."""
     if not technologies:
         return ""
     # Handle both {"name": "Tech"} objects and plain strings
@@ -94,7 +94,7 @@ def join_tech(technologies: list) -> str:
             names.append(tech.get("name", ""))
         else:
             names.append(str(tech))
-    return ", ".join(filter(None, names))
+    return ", ".join(latex_escape(n) for n in names if n)
 
 
 def format_duration(start_date: str, end_date: str | None = None) -> str:

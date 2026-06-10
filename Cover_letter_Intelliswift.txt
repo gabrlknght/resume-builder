@@ -1,0 +1,16 @@
+Application for Web Developer III – WordPress & AI‑First Development
+
+Dear Deepak Jasti,
+
+I was thrilled to discover the Web Developer III position at Intelliswift. It aligns very well with my eight years of building enterprise‑grade, high‑traffic WordPress sites and my passion for leveraging AI‑driven workflows to accelerate delivery.
+
+During my tenure as Retention Team Lead Developer at WDG, I steered a cross‑functional squad that maintained 99.9 % uptime across more than 30 high‑profile WordPress and Drupal sites; by implementing GitHub Actions CI/CD pipelines, we cut release cycles by roughly 35 %. This experience underscores my ability to manage large‑scale, mission‑critical web platforms while keeping performance and reliability at the forefront.
+
+I have a proven track record of crafting custom themes and plugins from scratch—most recently delivering a Gutenberg‑block library that reduced page load times by 60 % for an enterprise client. My deep understanding of WordPress hooks, REST API integration, and modern JavaScript (ES6+) has consistently enabled me to translate complex business requirements into scalable, standards‑compliant solutions that meet rigorous accessibility guidelines.
+
+Beyond traditional development, I actively experiment with AI tools such as Copilot and Claude to generate boilerplate code, identify security vulnerabilities early, and suggest performance optimizations—skills I’m eager to bring to Innovate Tech Solutions’ AI‑first initiative. My solid foundation in HTML, CSS, and web standards ensures that every enhancement not only performs well but also delivers an inclusive user experience.
+
+I would welcome the chance to discuss how my blend of technical expertise, leadership, and AI‑augmented development can help Intelliswift maintain its reputation for high‑traffic, enterprise‑grade WordPress platforms. Thank you for considering my application; I look forward to the possibility of contributing to your team.
+
+Sincerely,
+Avik Nandy

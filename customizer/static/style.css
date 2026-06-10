@@ -709,3 +709,30 @@ button.loading {
 .layout.no-preview .editor-pane {
     border-right: none;
 }
+
+/* ---- Drag-and-drop reordering ---- */
+.drag-handle {
+    cursor: grab;
+    color: var(--muted);
+    padding: 0 0.4rem 0 0;
+    user-select: none;
+    font-size: 15px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.array-entry[draggable="true"] {
+    cursor: default;
+}
+
+.array-entry.drag-source {
+    opacity: 0.35;
+}
+
+.array-entry.drag-over {
+    border-top: 2px solid var(--fg);
+}
