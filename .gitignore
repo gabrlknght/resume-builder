@@ -12,6 +12,8 @@ data/
 
 # Local apps
 .opencode
+.claude
+.pi
 
 # Node
 node_modules/
