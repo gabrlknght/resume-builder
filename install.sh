@@ -27,18 +27,52 @@ SKIP_OLLAMA=false
 OLLAMA_MODEL="gemma4:e4b"
 AUTO_YES=false
 
+show_help() {
+    cat <<'HELP'
+Usage: bash install.sh [OPTIONS]
+
+  First-time setup for the Resume Builder + AI Tailoring pipeline.
+
+Options:
+  --no-tex      Skip TeX Live installation
+  --no-ollama   Skip Ollama installation
+  --model NAME  Ollama model to pull (default: gemma4:e4b)
+                 Examples: llama3.2, lfm2.5:latest, mistral:latest
+  --yes, -y     Auto-accept all prompts (non-interactive mode)
+  --help, -h    Show this help message
+
+Examples:
+  # Install everything (interactive prompts)
+  bash install.sh
+
+  # Skip TeX Live, install Ollama with llama3.2, auto-accept
+  bash install.sh --no-tex --model llama3.2 --yes
+
+  # Show help
+  bash install.sh --help
+
+HELP
+    exit 0
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-tex)     SKIP_TEX=true; shift ;;
         --no-ollama)  SKIP_OLLAMA=true; shift ;;
-        --yes|-y)     AUTO_YES=true; shift ;;
+        --yes|-y)     if [[ "$2" == "-h" || "$2" == "--help" ]]; then
+                         shift 2
+                         show_help
+                     else
+                         AUTO_YES=true; shift ;;
+                     fi ;;
         --model=*)    OLLAMA_MODEL="${1#--model=}"; shift ;;
         --model)
             if [[ -z "${2:-}" ]]; then
                 echo "ERROR: --model requires a value" >&2
-                exit 1
+                show_help
             fi
             OLLAMA_MODEL="$2"; shift 2 ;;
+        --help|-h)    show_help ;;
         *) shift ;;
     esac
 done
