@@ -59,12 +59,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-tex)     SKIP_TEX=true; shift ;;
         --no-ollama)  SKIP_OLLAMA=true; shift ;;
-        --yes|-y)     if [[ "$2" == "-h" || "$2" == "--help" ]]; then
-                         shift 2
-                         show_help
-                     else
-                         AUTO_YES=true; shift ;;
-                     fi ;;
+        --yes|-y)     AUTO_YES=true; shift ;;
         --model=*)    OLLAMA_MODEL="${1#--model=}"; shift ;;
         --model)
             if [[ -z "${2:-}" ]]; then
@@ -225,7 +220,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Ollama (Local LLM — no API key needed)
+# 4. Ollama (Local LLM — no API key needed)
 # ---------------------------------------------------------------------------
 header "Step 4: Ollama — Local LLM (Optional)"
 echo "Ollama lets you run the AI tailoring pipeline 100% offline."
@@ -256,7 +251,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Pull Ollama model
+# 5. Pull Ollama model
 # ---------------------------------------------------------------------------
 if [[ "${OLLAMA_INSTALLED:-false}" == "true" ]]; then
     header "Step 5: Pull Ollama Model"
@@ -289,7 +284,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Optional: API key environment variables
+# 6. Optional: API key environment variables
 # ---------------------------------------------------------------------------
 header "Step 6: Cloud Provider API Keys (Optional)"
 echo "If you plan to use cloud providers (OpenAI, Cerebras, Gemini, etc.), you can"
@@ -305,7 +300,7 @@ echo "The server reads <PROVIDER>_API_KEY automatically on startup."
 echo "Ollama (local) requires no API key — just select it in the UI."
 
 # ---------------------------------------------------------------------------
-# 6. Done — summary
+# 7. Done — summary
 # ---------------------------------------------------------------------------
 header "Setup Complete"
 
