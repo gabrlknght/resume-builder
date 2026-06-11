@@ -1,19 +1,11 @@
 # customizer/server_additions.py
 
-import json
 from datetime import datetime as dt_obj
 from datetime import timedelta
-from pathlib import Path
 
+from config import CL_HISTORY_DIR, HISTORY_DIR
 from fastapi.responses import JSONResponse
-
-# Mirror path constants from server.py to avoid a circular import (no __init__.py
-# in this package, so relative imports are not available).
-_CUSTOMIZER_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _CUSTOMIZER_DIR.parent
-_DATA_DIR = _PROJECT_ROOT / "data"
-HISTORY_DIR = _DATA_DIR / "history"
-CL_HISTORY_DIR = _DATA_DIR / "cl-history"
+from history_manager import scan_history_entries
 
 _PERIOD_WINDOWS = {
     "weekly": timedelta(days=7),
@@ -22,18 +14,11 @@ _PERIOD_WINDOWS = {
 }
 
 
-def _scan_entries(history_dir: Path, entry_type: str) -> list:
-    """Walk a history directory for _meta.json files and tag each with type."""
-    entries = []
-    if not history_dir.exists():
-        return entries
-    for meta_file in history_dir.rglob("_meta.json"):
-        try:
-            entry = json.loads(meta_file.read_text(encoding="utf-8"))
-            entry["_type"] = entry_type
-            entries.append(entry)
-        except Exception:
-            continue
+def _scan_entries_with_type(history_dir, entry_type: str) -> list:
+    """Get history entries and tag each with type."""
+    entries = scan_history_entries(history_dir)
+    for entry in entries:
+        entry["_type"] = entry_type
     return entries
 
 
@@ -56,9 +41,9 @@ def _aggregate_history(period: str, entry_type: str = "all") -> dict:
 
     entries = []
     if entry_type in ("resume", "all"):
-        entries.extend(_scan_entries(HISTORY_DIR, "resume"))
+        entries.extend(_scan_entries_with_type(HISTORY_DIR, "resume"))
     if entry_type in ("cover_letter", "all"):
-        entries.extend(_scan_entries(CL_HISTORY_DIR, "cover_letter"))
+        entries.extend(_scan_entries_with_type(CL_HISTORY_DIR, "cover_letter"))
 
     # Filter to the relevant window and parse timestamps up front.
     timed = []
