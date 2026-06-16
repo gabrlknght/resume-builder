@@ -2,6 +2,19 @@
 
 This project leverages both automated CI/CD and AI-assisted workflows to build, maintain, and customize professional resumes from structured JSON data.
 
+## Wiki (Knowledge Base)
+
+A persistent LLM-maintained wiki lives at `wiki/`. **Read `wiki/index.md` first** before answering any question about the project or resume — it catalogs all pages and their one-line summaries. The wiki compiles knowledge so you don't re-derive it from raw files every session.
+
+Key entry points:
+- `wiki/SCHEMA.md` — operating manual (operations: Ingest, Query, Update, Lint)
+- `wiki/index.md` — page catalog, read first
+- `wiki/log.md` — append-only activity log
+- `wiki/resume/` — compiled resume content (mirrors `data/*.json`)
+- `wiki/applications/` — one page per job tailoring session
+
+**Keep the wiki in sync:** when `data/*.json` changes, update the matching `wiki/resume/*.md` page and append to `wiki/log.md`.
+
 ## Two Workflows
 
 - **CI/CD (Zero Setup)**: Push JSON changes to GitHub → PDF auto-generated via GitHub Actions. No local installation required.

@@ -21,3 +21,6 @@ node_modules/
 # Build artifacts
 customizer/static/app.min.js
 customizer/static/style.min.css
+/.obsidian
+/data
+/wiki/.obsidian
