@@ -1,7 +1,7 @@
 ---
 title: Wiki Index
 type: index
-last_updated: 2026-06-16
+last_updated: 2026-06-25
 ---
 
 # Wiki Index — Resume Builder
@@ -13,6 +13,7 @@ Read this file first when answering queries. Each entry links to a wiki page wit
 - [SCHEMA](SCHEMA.md) — Operating manual: directory layout, page formats, operations, rules
 - [Log](log.md) — Chronological record of all wiki activity (ingest, update, lint, applications)
 - [Overview](overview.md) — High-level synthesis: what this project is and how it all fits together
+- [CLAUDE.md](../CLAUDE.md) — Claude Code guidance: commands, architecture summary, wiki/edit/JSON rules
 
 ## Architecture
 
