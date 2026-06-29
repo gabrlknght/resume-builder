@@ -1,3 +1,10 @@
+---
+title: Wiki Schema
+type: architecture
+last_updated: 2026-06-28
+sources: [AGENTS.md, wiki/SCHEMA.md]
+---
+
 # Wiki Schema — Resume Builder
 
 This is the operating manual for the LLM-maintained wiki of the `resume-builder` project. Claude reads this file at the start of every wiki-related task to understand the structure, conventions, and workflows.
@@ -21,15 +28,14 @@ wiki/
 ├── architecture/
 │   ├── system.md              # Core system architecture (FastAPI, JSON→LaTeX, CI/CD)
 │   └── pipeline.md            # AI tailoring 4-stage pipeline detail
-├── resume/
-│   ├── profile.md             # Avik's current profile, title, bio, contact
-│   ├── experience.md          # Full work history with company/role/dates/bullets
-│   ├── projects.md            # All projects with tech stacks and status
-│   ├── skills.md              # Skills by category
-│   └── education.md           # Education + contact info
-└── applications/
-    └── YYYY-MM-DD_company_role.md   # One file per job application
+├── decisions/
+│   └── index.md               # ADRs — architectural and project decisions with rationale
+├── applications/
+│   └── YYYY-MM-DD_company_role.md   # One file per job application
+└── DEVELOPMENT.md              # Setup, build, and troubleshooting guide
 ```
+
+Note: `data/*.json` is the resume content's only source of truth. The wiki does not mirror it page-for-page — that mirror was dropped (`wiki/resume/*.md` removed) because example resume data has no value as wiki knowledge.
 
 ---
 
@@ -72,13 +78,14 @@ When the user asks a question about the project or resume:
 3. Synthesize and answer with wiki citations.
 4. If the answer is valuable and non-obvious, offer to file it as a new wiki page.
 
-### Update (Resume Sync)
+### Update (Decision or Architecture Change)
 
-When `data/*.json` files are edited:
+When a project decision is made or the architecture changes:
 
-1. Update the matching `resume/*.md` wiki page to reflect the change.
-2. Update `last_updated` frontmatter.
-3. Append an entry to `log.md`.
+1. Add a new ADR entry to `decisions/index.md` (or update an existing one's status).
+2. Update the relevant `architecture/*.md` page if the change affects system structure.
+3. Update `last_updated` frontmatter.
+4. Append an entry to `log.md`.
 
 ### Lint
 
@@ -86,9 +93,11 @@ Periodically (user-requested):
 
 1. Check for pages with stale `last_updated` dates.
 2. Check for orphan pages (no inlinks from index or other pages).
-3. Check for contradictions between resume wiki pages and `data/*.json`.
+3. Check that expected directories (`decisions/`, `applications/`) exist.
 4. Suggest new application pages for tailoring sessions not yet filed.
 5. Identify concepts worth their own page that are only mentioned inline.
+
+`scripts/wiki_lint.py` automates checks 1–3 and runs in CI (non-blocking) on every wiki/scripts change.
 
 ---
 
@@ -146,5 +155,5 @@ This makes the log grep-able: `grep "^## \[" wiki/log.md | tail -10`
 - **Never edit `data/*.json` from within wiki operations.** Wiki pages describe what's in the JSON; only tailoring sessions modify the JSON.
 - **The index is always up to date.** Every new page gets an entry in `index.md` immediately.
 - **Application pages are never deleted**, even after rejection — they record what was tried.
-- **Resume wiki pages mirror the JSON.** If they diverge, the JSON wins.
-- **Cross-link generously.** An application page should link to `[[experience]]`, `[[skills]]`, etc.
+- **The wiki does not mirror `data/*.json`.** Resume content lives only in JSON; the wiki holds architecture, decisions, and applications.
+- **Cross-link generously.** An application page should link to `[[pipeline]]`, `[[system]]`, etc.

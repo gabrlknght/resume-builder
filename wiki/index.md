@@ -1,7 +1,8 @@
 ---
 title: Wiki Index
 type: index
-last_updated: 2026-06-25
+last_updated: 2026-06-28
+sources: [wiki/SCHEMA.md, data/profile.json, data/experience.json, data/projects.json, data/skills.json, data/education.json]
 ---
 
 # Wiki Index — Resume Builder
@@ -14,20 +15,19 @@ Read this file first when answering queries. Each entry links to a wiki page wit
 - [Log](log.md) — Chronological record of all wiki activity (ingest, update, lint, applications)
 - [Overview](overview.md) — High-level synthesis: what this project is and how it all fits together
 - [CLAUDE.md](../CLAUDE.md) — Claude Code guidance: commands, architecture summary, wiki/edit/JSON rules
+- [DEVELOPMENT](DEVELOPMENT.md) — Setup instructions, common pitfalls, local UI troubleshooting
 
 ## Architecture
 
 - [System Architecture](architecture/system.md) — FastAPI backend, JSON→LaTeX pipeline, CI/CD, web UI stack
 - [AI Tailoring Pipeline](architecture/pipeline.md) — 4-stage LLM pipeline: JD analysis, matching, tailoring, validation
 
-## Resume
+## Decisions
 
-- [Profile](resume/profile.md) — Avik Nandy: current title, bio, contact, socials
-- [Experience](resume/experience.md) — Full work history (14 roles, 1999–present), companies, bullets
-- [Projects](resume/projects.md) — 18 projects with tech stacks, status, and URLs
-- [Skills](resume/skills.md) — 8 skill categories: Frontend, Backend, DB, Cloud, DevOps, AI/ML, Architecture, Consulting
-- [Education](resume/education.md) — Georgia Tech + George Mason; contact info
+- [Decisions](decisions/index.md) — Recorded architectural and project decisions with rationale
 
 ## Applications
 
-*(No applications filed yet — add one per tailoring session)*
+> One page per tailoring session. Templates in [[SCHEMA#Application Page Format]].
+
+- [applications/](applications/) — Directory for application pages (empty — add `YYYY-MM-DD_company_role.md` per session)
