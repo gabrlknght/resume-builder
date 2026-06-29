@@ -145,6 +145,7 @@
     <option value="cerebras">Cerebras</option>
     <option value="nvidia">Nvidia</option>
     <option value="gemini">Gemini API</option>
+    <option value="llamacpp">llama.cpp (Local Models)</option>
     <option value="ollama">Ollama (Local Models)</option>
     <option value="openrouter">OpenRouter (Free)</option>
     <option value="openrouter_meta">OpenRouter (Meta Llama)</option>
@@ -153,8 +154,8 @@
                         </div>
                         <div class="field">
                             <label for="ai-model">MODEL</label>
-                            <input type="text" id="ai-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini" list="ollama-models-list" autocomplete="off">
-                            <datalist id="ollama-models-list"></datalist>
+                            <input type="text" id="ai-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini" list="llama-cpp-models-list" autocomplete="off">
+                            <datalist id="llama-cpp-models-list"></datalist>
                         </div>
                     </div>
                     <div class="field-row">
@@ -206,6 +207,7 @@
                                 <option value="cerebras">Cerebras</option>
                                 <option value="nvidia">Nvidia</option>
                                 <option value="gemini">Gemini API</option>
+                                <option value="llamacpp">llama.cpp (Local Models)</option>
                                 <option value="ollama">Ollama (Local Models)</option>
                                 <option value="openrouter">OpenRouter (Free)</option>
                                 <option value="openrouter_meta">OpenRouter (Meta Llama)</option>
@@ -215,8 +217,8 @@
                         <div class="field">
                             <label for="cl-model">MODEL</label>
                             <input type="text" id="cl-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini"
-                                list="cl-ollama-models-list" autocomplete="off">
-                            <datalist id="cl-ollama-models-list"></datalist>
+                                list="cl-llama-cpp-models-list" autocomplete="off">
+                            <datalist id="cl-llama-cpp-models-list"></datalist>
                         </div>
                     </div>
                     <div class="field-row">

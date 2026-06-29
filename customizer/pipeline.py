@@ -48,6 +48,9 @@ PROVIDER_CONFIGS = {
     "cerebras": {"base_url": "https://api.cerebras.ai/v1"},
     "nvidia": {"base_url": "https://integrate.api.nvidia.com/v1"},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
+    "llamacpp": {
+        "base_url": "http://localhost:8080/v1"
+    },
     "ollama": {
         "base_url": "http://localhost:11434/v1"
     },
@@ -63,6 +66,17 @@ OLLAMA_MODEL_ALIASES = {
     "qwen3.5": "qwen3.5-opencode:latest",
     "gpt-oss": "gpt-oss-20b",
 }
+
+# Hard ceiling on generated tokens per call. Local reasoning models otherwise
+# have no incentive to stop, and a runaway generation can eat a minute+ of
+# decode time on memory-bandwidth-bound hardware.
+MAX_OUTPUT_TOKENS = 2048
+
+
+def _local_extra_kwargs(client) -> dict:
+    """Extra request kwargs for local providers (e.g. disabling reasoning mode)."""
+    extra_body = getattr(client, "_disable_thinking_extra_body", None)
+    return {"extra_body": extra_body} if extra_body else {}
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +104,24 @@ def get_instructor_client(config: dict):
         # Local models often emit multiple parallel tool calls which instructor's
         # TOOLS mode rejects.  JSON mode has the model return a raw JSON object
         # instead, which small/local models handle much more reliably.
-        return instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
+        ic = instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
+        ic._disable_thinking_extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
+        return ic
+    elif provider == "llamacpp":
+        raw_client = openai.OpenAI(
+            api_key=(api_key or "llamacpp"),
+            base_url=resolved_base_url
+        )
+        # Local models often emit multiple parallel tool calls which instructor's
+        # TOOLS mode rejects.  JSON mode has the model return a raw JSON object
+        # instead, which small/local models handle much more reliably.
+        ic = instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
+        # Reasoning models (e.g. Qwen3.x) burn thousands of tokens on hidden
+        # <think> chains before emitting the JSON instructor is waiting for.
+        # Disabling thinking for structured-output calls cuts decode time
+        # drastically on memory-bandwidth-bound local hardware.
+        ic._disable_thinking_extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
+        return ic
     else:
         # All other providers need API key and use OpenAI-compatible API
         raw_client = openai.OpenAI(
@@ -324,6 +355,8 @@ async def analyze_jd(client, jd_text: str, model: str) -> JDAnalysis:
         response_model=JDAnalysis,
         temperature=0.1,
         max_retries=2,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        **_local_extra_kwargs(client),
     )
     return response
 
@@ -453,6 +486,8 @@ async def tailor_profile(
         response_model=TailoredProfile,
         temperature=0.3,
         max_retries=2,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        **_local_extra_kwargs(client),
     )
     return response
 
@@ -477,6 +512,8 @@ async def tailor_experience(
         response_model=ExperienceList,
         temperature=0.3,
         max_retries=2,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        **_local_extra_kwargs(client),
     )
     return response
 
@@ -501,6 +538,8 @@ async def tailor_projects(
         response_model=ProjectList,
         temperature=0.3,
         max_retries=2,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        **_local_extra_kwargs(client),
     )
     return response
 
@@ -770,6 +809,8 @@ async def generate_cover_letter(
         response_model=CoverLetterOutput,
         temperature=0.4,
         max_retries=2,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        **_local_extra_kwargs(client),
     )
     return response
 

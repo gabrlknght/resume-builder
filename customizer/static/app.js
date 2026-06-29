@@ -38,13 +38,13 @@ document.addEventListener("DOMContentLoaded", () => {
         providerId: "ai-provider",
         modelId: "ai-model",
         baseUrlId: "ai-base-url",
-        datalistId: "ollama-models-list",
+        datalistId: "llama-cpp-models-list",
     });
     initProviderSelect({
         providerId: "cl-provider",
         modelId: "cl-model",
         baseUrlId: "cl-base-url",
-        datalistId: "cl-ollama-models-list",
+        datalistId: "cl-llama-cpp-models-list",
     });
 });
 
@@ -127,6 +127,7 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
         "cerebras": { base_url: "https://api.cerebras.ai/v1", model: "llama3.1-8b" },
         "nvidia": { base_url: "https://integrate.api.nvidia.com/v1", model: "moonshotai/kimi-k2.5" },
         "gemini": { base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.5-flash" },
+        "llamacpp": { base_url: "http://localhost:8080", model: "" },
         "ollama": { base_url: "http://localhost:11434", model: "" },
         "openrouter": { base_url: "https://openrouter.ai/api/v1", model: "openrouter/free" },
         "openrouter_meta": { base_url: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct:free" },
@@ -156,7 +157,28 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
         // Clear datalist for non-Ollama providers
         if (datalist) datalist.innerHTML = "";
 
-        if (provider === "ollama") {
+        if (provider === "llamacpp") {
+            const cppBase = (baseUrlInput.value || "http://localhost:8080").replace(/\/+$/, "");
+            const modelsUrl = cppBase.endsWith("/v1") ? `${cppBase}/models` : `${cppBase}/v1/models`;
+            modelInput.placeholder = "Fetching models…";
+            fetch(modelsUrl)
+                .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+                .then((data) => {
+                    const models = (data.data || []).map((m) => m.id).filter(Boolean);
+                    if (datalist) {
+                        datalist.innerHTML = models
+                            .map((m) => `<option value="${esc(m)}">`)
+                            .join("");
+                    }
+                    if (models.length > 0 && !modelInput.value) {
+                        modelInput.value = models[0];
+                    }
+                    modelInput.placeholder = models.length ? "Select or type a model" : "No models found — is llama.cpp running?";
+                })
+                .catch(() => {
+                    modelInput.placeholder = "Could not reach llama.cpp at " + cppBase;
+                });
+        } else if (provider === "ollama") {
             const ollamaBase = (baseUrlInput.value || "http://localhost:11434").replace(/\/+$/, "");
             const tagsBase = ollamaBase.replace(/\/v1$/, "");
             modelInput.placeholder = "Fetching models…";
