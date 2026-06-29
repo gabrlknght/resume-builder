@@ -6,6 +6,7 @@ on:
       - 'templates/resume.tex.j2'
       - 'data/*.json'
       - 'scripts/render_resume.py'
+      - 'scripts/wiki_lint.py'
       - '.github/workflows/build-resume.yml'
     branches:
       - main
@@ -26,6 +27,10 @@ jobs:
 
       - name: Install Jinja2
         run: pip install jinja2
+
+      - name: Lint Wiki Health
+        run: python scripts/wiki_lint.py
+        continue-on-error: true
 
       - name: Render Resume Template
         run: python scripts/render_resume.py

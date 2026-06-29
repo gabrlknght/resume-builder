@@ -93,10 +93,10 @@ Key files:
 - `wiki/SCHEMA.md` — Operating manual: operations (Ingest, Query, Update, Lint), page formats, rules
 - `wiki/index.md` — Page catalog; always read first when querying
 - `wiki/log.md` — Append-only activity log (grep: `grep "^## \[" wiki/log.md | tail -10`)
-- `wiki/resume/` — Mirrors `data/*.json` as prose pages
+- `wiki/decisions/` — ADRs: architectural and project decisions with rationale
 - `wiki/applications/` — One page per job tailoring session
 
-**Wiki sync rule:** When `data/*.json` changes, update the matching `wiki/resume/*.md` page and append to `wiki/log.md`.
+**Wiki sync rule:** `data/*.json` is the sole source of truth for resume content and is not mirrored in the wiki. When a decision or architecture change happens, add/update an ADR in `wiki/decisions/` and append to `wiki/log.md`.
 
 **Log entry format:** `## [YYYY-MM-DD] <type> | <short title>` — types: `ingest`, `query`, `update`, `lint`, `application`, `decision`
 
