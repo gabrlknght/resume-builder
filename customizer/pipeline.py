@@ -49,7 +49,7 @@ PROVIDER_CONFIGS = {
     "nvidia": {"base_url": "https://integrate.api.nvidia.com/v1"},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
     "llamacpp": {
-        "base_url": "http://localhost:8080/v1"
+        "base_url": "http://localhost:8080"  # no /v1 prefix — server expects plain host:port
     },
     "ollama": {
         "base_url": "http://localhost:11434/v1"
@@ -67,16 +67,10 @@ OLLAMA_MODEL_ALIASES = {
     "gpt-oss": "gpt-oss-20b",
 }
 
-# Hard ceiling on generated tokens per call. Local reasoning models otherwise
-# have no incentive to stop, and a runaway generation can eat a minute+ of
-# decode time on memory-bandwidth-bound hardware.
-MAX_OUTPUT_TOKENS = 2048
-
-
-def _local_extra_kwargs(client) -> dict:
-    """Extra request kwargs for local providers (e.g. disabling reasoning mode)."""
-    extra_body = getattr(client, "_disable_thinking_extra_body", None)
-    return {"extra_body": extra_body} if extra_body else {}
+# Hard ceiling on generated tokens per call. Reasoning models spend a chunk
+# of this on hidden <think> chains before the final JSON, so this needs
+# headroom beyond the structured output itself.
+MAX_OUTPUT_TOKENS = 6144
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +90,7 @@ def get_instructor_client(config: dict):
     # Ollama uses no auth by default; pass a placeholder key so the openai
     # client doesn't raise a "Missing credentials" error at construction time.
     if provider == "ollama":
-        raw_client = openai.OpenAI(
+        raw_client = openai.AsyncOpenAI(
             base_url=resolved_base_url,
             api_key="ollama",
             timeout=60.0
@@ -104,27 +98,20 @@ def get_instructor_client(config: dict):
         # Local models often emit multiple parallel tool calls which instructor's
         # TOOLS mode rejects.  JSON mode has the model return a raw JSON object
         # instead, which small/local models handle much more reliably.
-        ic = instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
-        ic._disable_thinking_extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
-        return ic
+        return instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
     elif provider == "llamacpp":
-        raw_client = openai.OpenAI(
+        raw_client = openai.AsyncOpenAI(
             api_key=(api_key or "llamacpp"),
-            base_url=resolved_base_url
+            base_url=resolved_base_url,
+            timeout=120.0,  # local models can stall on OOM / context overflow
         )
         # Local models often emit multiple parallel tool calls which instructor's
         # TOOLS mode rejects.  JSON mode has the model return a raw JSON object
         # instead, which small/local models handle much more reliably.
-        ic = instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
-        # Reasoning models (e.g. Qwen3.x) burn thousands of tokens on hidden
-        # <think> chains before emitting the JSON instructor is waiting for.
-        # Disabling thinking for structured-output calls cuts decode time
-        # drastically on memory-bandwidth-bound local hardware.
-        ic._disable_thinking_extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
-        return ic
+        return instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
     else:
         # All other providers need API key and use OpenAI-compatible API
-        raw_client = openai.OpenAI(
+        raw_client = openai.AsyncOpenAI(
             api_key=api_key,
             base_url=resolved_base_url
         )
@@ -346,7 +333,7 @@ Identify ATS keywords that are important for this specific role."""
 
 
 async def analyze_jd(client, jd_text: str, model: str) -> JDAnalysis:
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": STAGE1_SYSTEM},
@@ -356,7 +343,6 @@ async def analyze_jd(client, jd_text: str, model: str) -> JDAnalysis:
         temperature=0.1,
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
-        **_local_extra_kwargs(client),
     )
     return response
 
@@ -469,7 +455,7 @@ IMPORTANT: Use relevant tech keywords in descriptions to match the target role."
 async def tailor_profile(
     client, profile: dict, jd_analysis: JDAnalysis, model: str
 ) -> TailoredProfile:
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": STAGE3_PROFILE_SYSTEM},
@@ -487,7 +473,6 @@ async def tailor_profile(
         temperature=0.3,
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
-        **_local_extra_kwargs(client),
     )
     return response
 
@@ -495,7 +480,7 @@ async def tailor_profile(
 async def tailor_experience(
     client, experience: dict, jd_analysis: JDAnalysis, model: str
 ) -> ExperienceList:
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": STAGE3_EXPERIENCE_SYSTEM},
@@ -513,7 +498,6 @@ async def tailor_experience(
         temperature=0.3,
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
-        **_local_extra_kwargs(client),
     )
     return response
 
@@ -521,7 +505,7 @@ async def tailor_experience(
 async def tailor_projects(
     client, projects: dict, jd_analysis: JDAnalysis, model: str
 ) -> ProjectList:
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": STAGE3_PROJECTS_SYSTEM},
@@ -539,7 +523,6 @@ async def tailor_projects(
         temperature=0.3,
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
-        **_local_extra_kwargs(client),
     )
     return response
 
@@ -800,7 +783,7 @@ async def generate_cover_letter(
         + prior_section
     )
 
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": COVER_LETTER_SYSTEM},
@@ -810,7 +793,6 @@ async def generate_cover_letter(
         temperature=0.4,
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
-        **_local_extra_kwargs(client),
     )
     return response
 

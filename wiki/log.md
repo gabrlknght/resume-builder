@@ -37,3 +37,11 @@ Self-review caught doc/code drift introduced by the previous entry. Fixes:
 - Created root `Makefile` with `wiki-lint`, `wiki-sync` (no-op reminder), and `pdf` targets — `DEVELOPMENT.md` referenced `make wiki-sync`/`make wiki-lint`/`make pdf` with no Makefile to back them
 - scripts/wiki_lint.py: docstring claimed a "JSON-vs-wiki mismatch" check that was never implemented — removed from docstring
 - build-resume.yml: added `continue-on-error: true` to the wiki lint step so wiki staleness/orphans never block resume PDF releases
+
+## [2026-06-29] update | llama.cpp provider + reasoning disable + output token cap
+
+User moved to AMD machine, added llama.cpp as a local LLM provider alongside ollama.
+
+- Created `wiki/decisions/2026-06-29_llamacpp-provider.md` — ADR-006 documenting the decision
+- Code changes: `customizer/pipeline.py` (llamacpp provider config, `MAX_OUTPUT_TOKENS=2048`, `_local_extra_kwargs` to disable thinking), `customizer/server.py` (base_url normalization for llamacpp), `customizer/static/app.js` (model fetch from `/v1/models`, default settings), `customizer/templates/index.html` (dropdown + datalist entries)
+- Key features: reasoning chains disabled for structured output, 2048-token hard ceiling on all pipeline calls, auto model discovery from running llama.cpp server

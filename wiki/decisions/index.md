@@ -1,7 +1,7 @@
 ---
 title: Decisions Log
 type: synthesis
-last_updated: 2026-06-28
+last_updated: 2026-06-29
 sources: []
 ---
 
@@ -70,3 +70,16 @@ Recorded architectural and project decisions with rationale.
   - + Smaller payload, faster page load
   - - Debugging in browser DevTools requires hard-refresh + source maps
   - - Developers must remember to rebuild after edits
+
+## ADR-006: llama.cpp as a Local Provider with Reasoning Disable + Output Token Cap
+
+- **Date:** 2026-06-29
+- **Status:** Accepted
+- **Context:** User moved to an AMD machine and needed local LLM inference via llama.cpp. Reasoning-capable models (e.g. Qwen3.x) burn thousands of tokens on hidden `<think>` chains before emitting the JSON `instructor` waits for. Small/local models on memory-bandwidth-bound hardware have no incentive to stop generating — a runaway call can take a minute+.
+- **Decision:** Added `llamacpp` as a first-class provider with default URL `localhost:8080/v1`, no API key required, disabled reasoning chains via `chat_template_kwargs`, and a 2048-token hard ceiling on all pipeline LLM calls.
+- **Consequences:**
+  - + Fast results on non-CUDA, memory-bandwidth-bound hardware
+  - + Hidden reasoning chains cut out — smaller outputs, faster decode
+  - + Output token cap prevents runaway generations
+  - - llama.cpp must be running separately on port 8080
+  - - User must load a compatible model into llama.cpp manually

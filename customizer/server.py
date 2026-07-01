@@ -246,17 +246,14 @@ async def tailor(request: Request):
             if not base_url.endswith("/v1"):
                 base_url += "/v1"
         model = resolve_ollama_model(model)
-    # llama.cpp: ensure /v1 suffix, no API key required
+    # llama.cpp: no /v1 normalization (frontend handles it), no API key required
     elif provider == "llamacpp":
-        if base_url:
-            base_url = base_url.rstrip("/")
-            if not base_url.endswith("/v1"):
-                base_url += "/v1"
+        pass
     elif not api_key:
         return JSONResponse(
             status_code=400,
             content={
-                "error": f"API Key is required. Please provide it in the UI or set {env_key} / OPENAI_API_KEY environment variable."
+                "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
             },
         )
 
@@ -327,17 +324,14 @@ async def cover_letter_endpoint(request: Request):
             if not base_url.endswith("/v1"):
                 base_url += "/v1"
         model = resolve_ollama_model(model)
-    # llama.cpp: ensure /v1 suffix, no API key required
+    # llama.cpp: no /v1 normalization (frontend handles it), no API key required
     elif provider == "llamacpp":
-        if base_url:
-            base_url = base_url.rstrip("/")
-            if not base_url.endswith("/v1"):
-                base_url += "/v1"
+        pass
     elif not api_key:
         return JSONResponse(
             status_code=400,
             content={
-                "error": f"API Key is required. Please provide it in the UI or set {env_key} / OPENAI_API_KEY environment variable."
+                "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
             },
         )
 

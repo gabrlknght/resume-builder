@@ -15,5 +15,8 @@
     "eslint": "^9.0.0",
     "stylelint": "^16.0.0",
     "stylelint-config-standard": "^36.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true
   }
 }

@@ -997,8 +997,13 @@ async function tailorResume() {
 
     const provider = document.getElementById("ai-provider").value;
     const model = document.getElementById("ai-model").value;
-    const baseUrl = document.getElementById("ai-base-url").value;
+    let baseUrl = document.getElementById("ai-base-url").value;
     const apiKey = document.getElementById("ai-api-key").value;
+
+    // Normalize base_url for providers that expect OpenAI-compatible API path
+    if (provider === "llamacpp" && baseUrl) {
+        baseUrl = baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "") + "/v1";
+    }
 
     const btn = document.getElementById("btn-tailor");
     btn.classList.add("loading");
@@ -1294,8 +1299,13 @@ async function generateCoverLetter() {
     const priorLetter = (document.getElementById("cl-prior").value || "").trim();
     const provider = document.getElementById("cl-provider").value;
     const model = document.getElementById("cl-model").value;
-    const baseUrl = document.getElementById("cl-base-url").value;
+    let baseUrl = document.getElementById("cl-base-url").value;
     const apiKey = document.getElementById("cl-api-key").value;
+
+    // Normalize base_url for providers that expect OpenAI-compatible API path
+    if (provider === "llamacpp" && baseUrl) {
+        baseUrl = baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "") + "/v1";
+    }
 
     const btn = document.getElementById("btn-cover-letter");
     btn.classList.add("loading");
