@@ -50,6 +50,13 @@ User moved to AMD machine, added llama.cpp as a local LLM provider alongside oll
 
 Senior code review of the `semantic-ats-mapping` branch. Two P0 bugs, two P1 design gaps, and three P2/P3 improvements identified and fixed. Overall assessment: local model delivered a solid B+ — correct on happy path, architecture sound, bugs confined to last-mile wiring and edge-case logic.
 
+### Follow-up: Stage 3.5 SSE stage ID
+
+- Review comment noted that emitting `stage: 3.5` caused the frontend progress handler (which mapped only integer stages 1–4) to ignore the new half-step.
+- Changed backend SSE `stage` for the Keyword Mapping half-step from `3.5` to integer `35`.
+- Updated `customizer/static/app.js` `handlePipelineEvent()` stage map to include `35` and relabel all tailoring stages as 1/5 through 4/5.
+- Updated `customizer/pipeline.py` module docstring and `wiki/architecture/pipeline.md` to document the integer stage ID convention.
+
 ### Bugs fixed
 
 - **[P0] Cover letter tone silently dropped** — `tone` was received by `run_cover_letter_pipeline()` but never forwarded to `generate_cover_letter()`. Cover letter tone UI selector had no effect. Fixed by adding `tone` param to `generate_cover_letter()`, converting `COVER_LETTER_SYSTEM` to a format string with `{tone}` placeholder, and threading it through the call.

@@ -6,6 +6,7 @@ Stages:
   1. JD Analysis       — extract structured requirements from the job description
   2. Match & Score     — deterministic keyword overlap scoring (early-exit on low relevance)
   3. Section Tailoring — parallel LLM calls to rewrite profile, experience, projects
+  3.5 Keyword Mapping  — deterministic diff-based keyword traceability matrix
   4. Validate & Assemble — run eval-module metrics and auto-fix immutable violations
 
 Each stage yields SSE events for real-time frontend streaming.
@@ -801,10 +802,11 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
         )
         yield sse_event({"stage": 3, "status": "complete"})
 
-        # Stage 3.5: Keyword Mapping Matrix
+        # Stage 3.5: Keyword Mapping Matrix (use integer stage ID 35 so the
+        # frontend can map it without floating-point lookup issues)
         yield sse_event(
             {
-                "stage": 3.5,
+                "stage": 35,
                 "status": "in_progress",
                 "message": "Building keyword mapping matrix...",
             }
@@ -814,7 +816,7 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
             {"profile": profile.model_dump(), "experience": experience.model_dump(), "projects": projects.model_dump()},
             jd_analysis,
         )
-        yield sse_event({"stage": 3.5, "status": "complete"})
+        yield sse_event({"stage": 35, "status": "complete"})
 
         yield sse_event(
             {

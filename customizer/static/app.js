@@ -837,10 +837,11 @@ function updateProgress(pct, message) {
 
 function handlePipelineEvent(event) {
     const stageMap = {
-        1: { pct: 10, label: "Stage 1/4: Analyzing job description..." },
-        2: { pct: 35, label: "Stage 2/4: Matching resume to requirements..." },
-        3: { pct: 65, label: "Stage 3/4: Tailoring resume sections..." },
-        4: { pct: 90, label: "Stage 4/4: Validating output..." },
+        1: { pct: 10, label: "Stage 1/5: Analyzing job description..." },
+        2: { pct: 30, label: "Stage 2/5: Matching resume to requirements..." },
+        3: { pct: 55, label: "Stage 3/5: Tailoring resume sections..." },
+        35: { pct: 75, label: "Stage 3.5/5: Building keyword mapping matrix..." },
+        4: { pct: 90, label: "Stage 4/5: Validating output..." },
     };
 
     if (event.status === "error") {

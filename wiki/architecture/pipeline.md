@@ -8,7 +8,7 @@ sources: [AGENTS.md, customizer/pipeline.py, customizer/TAILOR_SKILL.md]
 
 # AI Tailoring Pipeline
 
-The `/api/tailor` endpoint implements a 5-stage pipeline (originally 4, now includes Stage 3.5: Keyword Mapping) that replaces the original single-prompt approach. Each stage has a focused responsibility and dedicated cost profile.
+The `/api/tailor` endpoint implements a 5-stage pipeline (originally 4, now includes Stage 3.5: Keyword Mapping) that replaces the original single-prompt approach. Each stage has a focused responsibility and dedicated cost profile. The SSE `stage` field uses integer IDs (`1`, `2`, `3`, `35`, `4`) so the frontend can map progress without floating-point lookup issues.
 
 ## Stages
 
