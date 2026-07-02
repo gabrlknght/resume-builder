@@ -43,6 +43,7 @@ def save_resume_history(
     company: str = "",
     job_title: str = "",
     match_score: Optional[float] = None,
+    timing: Optional[dict] = None,
 ) -> tuple[str, Path]:
     """Save resume to history with metadata. Returns (entry_id, pdf_path)."""
     safe_name = safe_filename(profile_name)
@@ -65,6 +66,8 @@ def save_resume_history(
         "hired": False,
         "pdf_filename": f"{safe_name}_{ts_str}.pdf",
     }
+    if timing is not None:
+        meta["timing"] = timing
     save_json(hist_folder / "_meta.json", meta)
 
     return entry_id, hist_folder / meta["pdf_filename"]
@@ -74,7 +77,11 @@ def save_cover_letter_history(
     cl_history_dir: Path,
     cl_data: dict,
 ) -> str:
-    """Save cover letter to history. Returns entry_id."""
+    """Save cover letter to history. Returns entry_id.
+
+    Extra metadata fields on cl_data (timing, model, provider) are merged
+    into the _meta.json alongside the standard fields.
+    """
     candidate_name = cl_data.get("candidate_name", "cover_letter")
     job_title = cl_data.get("job_title", "")
     company = cl_data.get("company", "")
@@ -119,6 +126,10 @@ def save_cover_letter_history(
         "job_title": job_title,
         "relevance_score": relevance,
     }
+    # Merge extra metadata (timing, model, provider)
+    for key in ("timing", "model", "provider"):
+        if key in cl_data and cl_data[key] is not None:
+            meta[key] = cl_data[key]
     save_json(folder / "_meta.json", meta)
 
     return entry_id

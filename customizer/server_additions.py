@@ -80,12 +80,29 @@ def _aggregate_history(period: str, entry_type: str = "all") -> dict:
         hired_total += hiredcnt
         pending_total += pendingcnt
 
+        rates = []
+        durations = []
+        for item in bucket:
+            timing = item.get("timing")
+            if not timing:
+                continue
+            secs = timing.get("elapsed_seconds")
+            tokens = timing.get("total_tokens")
+            if secs and tokens:
+                rates.append(tokens / secs)
+            if secs:
+                durations.append(secs)
+        avg_tok_per_sec = round(sum(rates) / len(rates), 1) if rates else None
+        avg_elapsed_seconds = round(sum(durations) / len(durations), 1) if durations else None
+
         series.append(
             {
                 "label": label,
                 "total": subcnt,
                 "hired": hiredcnt,
                 "pending": pendingcnt,
+                "avg_tokens_per_sec": avg_tok_per_sec,
+                "avg_elapsed_seconds": avg_elapsed_seconds,
             }
         )
 

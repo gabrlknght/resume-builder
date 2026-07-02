@@ -685,6 +685,7 @@ async function generatePDF() {
 
     try {
         const meta = { ...(lastTailoringMeta || {}), company };
+        console.log("[generate meta]", meta);
         const res = await fetch("/api/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -939,6 +940,7 @@ function applyTailoredData(data, isSkip) {
             </div>
             ${data.relevance_analysis ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border); line-height: 1.6;">${esc(data.relevance_analysis)}</div>` : ''}
             ${evalHtml}
+            ${renderTimingHtml(data.timing)}
             <div style="font-size: 11px; text-transform: uppercase; color: var(--fg); margin-bottom: 0.5rem;">DIFF CHANGES:</div>
             <div style="position: relative; flex: 1; overflow-y: auto; min-height: 0;">
                 <pre style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #0a0a0a; padding: 0.5rem; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border); margin: 0;">${diffHtml}</pre>
@@ -1089,13 +1091,16 @@ async function tailorResume() {
                 // Final event
                 if (event.stage === "final" && event.status === "complete") {
                     updateProgress(100, "Complete");
+                    console.log("[tailor final data]", event.data);
                     // Capture tailoring metadata for next generate call
                     if (event.data && event.data.jd_analysis) {
                         lastTailoringMeta = {
                             company: event.data.jd_analysis.company_name || "",
                             job_title: event.data.jd_analysis.job_title || "",
                             match_score: event.data.relevance || null,
+                            timing: event.data.timing || null,
                         };
+                        console.log("[lastTailoringMeta]", lastTailoringMeta);
                     }
                     applyTailoredData(event.data, false);
                     toast("RESUME TAILORED SUCCESSFULLY");
@@ -1177,6 +1182,7 @@ function renderCoverLetterPreview(data) {
                 </div>
             </div>
             ${improvementsHtml}
+            ${renderTimingHtml(data.timing)}
             <div class="cl-actions">
                 <button type="button" class="btn-secondary btn-small" onclick="copyCoverLetter()">COPY TEXT</button>
                 <button type="button" class="btn-secondary btn-small" onclick="downloadCoverLetter()">DOWNLOAD .TXT</button>
@@ -1387,6 +1393,7 @@ async function generateCoverLetter() {
 
                 if (event.stage === "final" && event.status === "complete") {
                     updateClProgress(100, "Complete");
+                    console.log("[cover-letter final data]", event.data);
                     renderCoverLetterPreview(event.data);
                     saveCoverLetterToHistory(event.data);
                     toast("COVER LETTER GENERATED");
@@ -1411,7 +1418,7 @@ async function generateCoverLetter() {
 // History Dashboard
 // ---------------------------------------------------------------------------
 let historyPage = 1;
-let lastTailoringMeta = null; // {company, job_title, match_score} from last AI run
+let lastTailoringMeta = null; // {company, job_title, match_score, timing} from last AI run
 
 // ---------------------------------------------------------------------------
 // Cover Letter History
@@ -1461,6 +1468,16 @@ function renderClHistoryTable(data) {
             const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
             scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
         }
+        const timing = entry.timing;
+        let metricsHtml = "—";
+        if (timing && timing.total_tokens != null) {
+            const tok = timing.total_tokens;
+            const secs = timing.elapsed_seconds != null ? timing.elapsed_seconds + "s" : "";
+            const rate = timing.elapsed_seconds && timing.elapsed_seconds > 0
+                ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
+                : "";
+            metricsHtml = `${tok} tokens${secs ? ` / ${secs}` : ''}${rate ? ` (${rate})` : ''}`;
+        }
         const pdfLink = `<button type="button" class="btn-secondary btn-small" onclick="printClHistoryEntry('${esc(entry.id)}')" title="Open print/PDF dialog">PDF</button>`;
         const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
 
@@ -1474,6 +1491,7 @@ function renderClHistoryTable(data) {
             <td>${esc(entry.company || "—")}</td>
             <td>${esc(entry.job_title || "—")}</td>
             <td>${scoreHtml}</td>
+            <td style="white-space:nowrap; font-family:JetBrains Mono,monospace; font-size:11px;">${metricsHtml}</td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">${txtLink}</td>
             <td style="white-space:nowrap;">
@@ -1501,6 +1519,7 @@ function renderClHistoryTable(data) {
                         <th>COMPANY</th>
                         <th>JOB TITLE</th>
                         <th>SCORE</th>
+                        <th>METRICS</th>
                         <th>PDF</th>
                         <th>FILE</th>
                         <th>ACTIONS</th>
@@ -1587,6 +1606,16 @@ function renderHistoryTable(data) {
         }
         const hiredClass = entry.hired ? "hired-yes" : "hired-no";
         const hiredLabel = entry.hired ? "✓ YES" : "✗ NO";
+        const timing = entry.timing;
+        let metricsHtml = "—";
+        if (timing && timing.total_tokens != null) {
+            const tok = timing.total_tokens;
+            const secs = timing.elapsed_seconds != null ? timing.elapsed_seconds + "s" : "";
+            const rate = timing.elapsed_seconds && timing.elapsed_seconds > 0
+                ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
+                : "";
+            metricsHtml = `${tok} tokens${secs ? ` / ${secs}` : ''}${rate ? ` (${rate})` : ''}`;
+        }
         const pdfLink = entry.pdf_filename
             ? `<a href="/api/history/file/${entry.id}/${entry.pdf_filename}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
             : "—";
@@ -1601,6 +1630,7 @@ function renderHistoryTable(data) {
             <td>${esc(entry.company || "—")}</td>
             <td>${esc(entry.job_title || "—")}</td>
             <td>${scoreHtml}</td>
+            <td style="white-space:nowrap; font-family:JetBrains Mono,monospace; font-size:11px;">${metricsHtml}</td>
             <td><span class="${hiredClass}" onclick="toggleHired('${esc(entry.id)}', ${entry.hired}, this)" title="Click to toggle">${hiredLabel}</span></td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">
@@ -1628,6 +1658,7 @@ function renderHistoryTable(data) {
                         <th>COMPANY</th>
                         <th>JOB TITLE</th>
                         <th>SCORE</th>
+                        <th>METRICS</th>
                         <th>HIRED</th>
                         <th>PDF</th>
                         <th>ACTIONS</th>
@@ -1787,6 +1818,20 @@ function renderStatsDashboard(data) {
                     tension: 0.35,
                     borderWidth: 2,
                 },
+                {
+                    type: "line",
+                    label: "Avg tok/s",
+                    data: data.series.map(s => s.avg_tokens_per_sec),
+                    borderColor: "#f1c40f",
+                    backgroundColor: "transparent",
+                    pointBackgroundColor: "#f1c40f",
+                    pointRadius: 4,
+                    borderDash: [4, 3],
+                    tension: 0.35,
+                    borderWidth: 2,
+                    yAxisID: "y1",
+                    spanGaps: true,
+                },
             ],
         },
         options: {
@@ -1804,7 +1849,11 @@ function renderStatsDashboard(data) {
                         afterBody: (items) => {
                             const idx = items[0].dataIndex;
                             const s = data.series[idx];
-                            return [`Pending: ${s.pending}`];
+                            const lines = [`Pending: ${s.pending}`];
+                            if (s.avg_elapsed_seconds != null) {
+                                lines.push(`Avg time: ${formatDuration(s.avg_elapsed_seconds)}`);
+                            }
+                            return lines;
                         },
                     },
                 },
@@ -1816,8 +1865,16 @@ function renderStatsDashboard(data) {
                 },
                 y: {
                     beginAtZero: true,
+                    position: "left",
                     ticks: { color: "#888", font: { family: "JetBrains Mono", size: 10 }, precision: 0 },
                     grid: { color: "#1a1a1a" },
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: "right",
+                    ticks: { color: "#f1c40f", font: { family: "JetBrains Mono", size: 10 } },
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: "tok/s", color: "#f1c40f", font: { family: "JetBrains Mono", size: 10 } },
                 },
             },
         },
@@ -1847,4 +1904,22 @@ function esc(str) {
     const d = document.createElement("div");
     d.textContent = str;
     return d.innerHTML;
+}
+
+function formatDuration(totalSeconds) {
+    const s = Math.round(totalSeconds);
+    if (s < 60) return `${s}s`;
+    return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+function renderTimingHtml(timing) {
+    if (!timing || timing.total_tokens == null) return "";
+    const tok = timing.total_tokens;
+    const secs = timing.elapsed_seconds;
+    const rate = secs > 0 ? Math.round(tok / secs) : null;
+    return `<div style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--muted); display: flex; gap: 1rem; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border);">
+        <span>⏱ ${esc(formatDuration(secs))}</span>
+        <span>${tok.toLocaleString()} tokens</span>
+        ${rate !== null ? `<span>${rate} tok/s</span>` : ""}
+    </div>`;
 }

@@ -18,6 +18,8 @@ import asyncio
 import json
 import re
 import sys
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
@@ -104,7 +106,10 @@ def get_instructor_client(config: dict):
         raw_client = openai.AsyncOpenAI(
             api_key=(api_key or "llamacpp"),
             base_url=resolved_base_url,
-            timeout=120.0,  # local models can stall on OOM / context overflow
+            # Stage 3 fires 3 concurrent calls but most llama.cpp servers run a
+            # single inference slot, so requests queue behind each other —
+            # the last one needs enough headroom to wait plus generate.
+            timeout=600.0,
         )
         # Local models often emit multiple parallel tool calls which instructor's
         # TOOLS mode rejects.  JSON mode has the model return a raw JSON object
@@ -306,6 +311,62 @@ def sse_event(data: dict) -> str:
 # ---------------------------------------------------------------------------
 # Model helpers
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Metrics tracker
+# ---------------------------------------------------------------------------
+class MetricsTracker:
+    """Track total time and tokens across a sequence of LLM calls."""
+
+    def __init__(self) -> None:
+        self.start: float = time.monotonic()
+        self.total_tokens: int = 0
+
+    def track(self, coro):
+        """Wrap an awaitable coroutine for timing + token tracking.
+
+        Returns an async context manager that yields the coroutine result.
+        Usage: async with tracker.track(coro()) as resp: ...
+        """
+
+        @asynccontextmanager
+        async def _ctx():
+            _t0 = time.monotonic()
+            try:
+                resp = await coro
+            finally:
+                elapsed = time.monotonic() - _t0
+
+            # Extract completion tokens from instructor response
+            tokens = 0
+            usage = getattr(resp, "usage", None)
+            if usage is None:
+                raw = getattr(resp, "_raw_response", None)
+                if raw is not None:
+                    usage = getattr(raw, "usage", None)
+            if usage is None:
+                meta = getattr(resp, "model_extra", None)
+                if meta and isinstance(meta, dict):
+                    usage = meta.get("usage")
+            if usage is None:
+                extra = getattr(resp, "extra", None)
+                if extra and isinstance(extra, dict):
+                    usage = extra.get("response", None)
+                    if usage is not None:
+                        usage = getattr(usage, "usage", None)
+            if usage is not None:
+                tokens = getattr(usage, "completion_tokens", 0) or 0
+            if not isinstance(tokens, int):
+                tokens = 0
+            self.total_tokens += tokens
+            yield resp
+
+        return _ctx()
+
+    @property
+    def elapsed(self) -> float:
+        return time.monotonic() - self.start
+
+
 def resolve_ollama_model(model_name: str) -> str:
     """Map short model name to Ollama model ID if needed.
 
@@ -341,8 +402,8 @@ Additionally, extract:
 Return exactly one JSON object matching the schema below — do NOT include any reasoning or explanation text outside the JSON."""
 
 
-async def analyze_jd(client, jd_text: str, model: str) -> JDAnalysis:
-    response = await client.chat.completions.create(
+async def analyze_jd(client, jd_text: str, model: str, tracker: Optional[MetricsTracker] = None) -> JDAnalysis:
+    coro = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": STAGE1_SYSTEM},
@@ -353,7 +414,10 @@ async def analyze_jd(client, jd_text: str, model: str) -> JDAnalysis:
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
     )
-    return response
+    if tracker:
+        async with tracker.track(coro) as response:
+            return response
+    return await coro
 
 
 # ---------------------------------------------------------------------------
@@ -495,12 +559,13 @@ def _tailor_context(jd_analysis: JDAnalysis, tone: str, section_type: str) -> di
 
 
 async def tailor_profile(
-    client, profile: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
+    client, profile: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None
 ) -> TailoredProfile:
     ctx = _tailor_context(jd_analysis, tone, "profile")
     strategy = STAGE3_PROFILE_STRATEGY.format(**ctx)
     tone_cues_line = f"JD tone cues: {ctx['tone_cues']}\n" if ctx["tone_cues"] else ""
-    response = await client.chat.completions.create(
+    coro = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": strategy},
@@ -521,16 +586,20 @@ async def tailor_profile(
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
     )
-    return response
+    if tracker:
+        async with tracker.track(coro) as response:
+            return response
+    return await coro
 
 
 async def tailor_experience(
-    client, experience: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
+    client, experience: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None
 ) -> ExperienceList:
     ctx = _tailor_context(jd_analysis, tone, "experience")
     strategy = STAGE3_EXPERIENCE_STRATEGY.format(**ctx)
     tone_cues_line = f"JD tone cues: {ctx['tone_cues']}\n" if ctx["tone_cues"] else ""
-    response = await client.chat.completions.create(
+    coro = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": strategy},
@@ -552,16 +621,20 @@ async def tailor_experience(
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
     )
-    return response
+    if tracker:
+        async with tracker.track(coro) as response:
+            return response
+    return await coro
 
 
 async def tailor_projects(
-    client, projects: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
+    client, projects: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None
 ) -> ProjectList:
     ctx = _tailor_context(jd_analysis, tone, "projects")
     strategy = STAGE3_PROJECTS_STRATEGY.format(**ctx)
     tone_cues_line = f"JD tone cues: {ctx['tone_cues']}\n" if ctx["tone_cues"] else ""
-    response = await client.chat.completions.create(
+    coro = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": strategy},
@@ -582,20 +655,24 @@ async def tailor_projects(
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
     )
-    return response
+    if tracker:
+        async with tracker.track(coro) as response:
+            return response
+    return await coro
 
 
 async def tailor_all_sections(
-    client, resume_data: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
+    client, resume_data: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None
 ) -> tuple[dict, list[dict], list[dict]]:
     profile_task = tailor_profile(
-        client, resume_data.get("profile", {}), jd_analysis, model, tone
+        client, resume_data.get("profile", {}), jd_analysis, model, tone, tracker
     )
     experience_task = tailor_experience(
-        client, resume_data.get("experience", {}), jd_analysis, model, tone
+        client, resume_data.get("experience", {}), jd_analysis, model, tone, tracker
     )
     projects_task = tailor_projects(
-        client, resume_data.get("projects", {}), jd_analysis, model, tone
+        client, resume_data.get("projects", {}), jd_analysis, model, tone, tracker
     )
     profile, experience, projects = await asyncio.gather(
         profile_task, experience_task, projects_task
@@ -725,6 +802,7 @@ def validate_and_assemble(
 # Pipeline orchestrator
 # ---------------------------------------------------------------------------
 async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone: str = "professional"):
+    tracker = MetricsTracker()
     try:
         yield sse_event(
             {
@@ -733,7 +811,7 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
                 "message": "Analyzing job description...",
             }
         )
-        jd_analysis = await analyze_jd(client, jd_text, model)
+        jd_analysis = await analyze_jd(client, jd_text, model, tracker)
         yield sse_event(
             {
                 "stage": 1,
@@ -798,7 +876,7 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
             }
         )
         profile, experience, projects = await tailor_all_sections(
-            client, resume_data, jd_analysis, model, tone
+            client, resume_data, jd_analysis, model, tone, tracker
         )
         yield sse_event({"stage": 3, "status": "complete"})
 
@@ -842,6 +920,10 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
         }
 
         yield sse_event({"stage": 4, "status": "complete"})
+        final["timing"] = {
+            "elapsed_seconds": round(tracker.elapsed, 2),
+            "total_tokens": tracker.total_tokens,
+        }
         yield sse_event({"stage": "final", "status": "complete", "data": final})
 
     except Exception as e:
@@ -897,6 +979,7 @@ async def generate_cover_letter(
     resume_data: dict,
     prior_letter: Optional[str] = None,
     tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None,
 ) -> CoverLetterOutput:
     profile = resume_data.get("profile", {})
     candidate_name = profile.get("name", "the candidate")
@@ -930,7 +1013,7 @@ async def generate_cover_letter(
         + prior_section
     )
 
-    response = await client.chat.completions.create(
+    coro = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": COVER_LETTER_SYSTEM.format(tone=tone)},
@@ -941,7 +1024,10 @@ async def generate_cover_letter(
         max_retries=2,
         max_tokens=MAX_OUTPUT_TOKENS,
     )
-    return response
+    if tracker:
+        async with tracker.track(coro) as response:
+            return response
+    return await coro
 
 
 async def run_cover_letter_pipeline(
@@ -952,11 +1038,12 @@ async def run_cover_letter_pipeline(
     prior_letter: Optional[str] = None,
     tone: str = "professional",
 ):
+    tracker = MetricsTracker()
     try:
         yield sse_event(
             {"stage": 1, "status": "in_progress", "message": "Analyzing job description..."}
         )
-        jd_analysis = await analyze_jd(client, jd_text, model)
+        jd_analysis = await analyze_jd(client, jd_text, model, tracker)
         yield sse_event(
             {
                 "stage": 1,
@@ -991,7 +1078,7 @@ async def run_cover_letter_pipeline(
         )
         yield sse_event({"stage": 3, "status": "in_progress", "message": stage3_msg})
         cover_letter = await generate_cover_letter(
-            client, model, jd_text, jd_analysis, resume_data, prior_letter, tone
+            client, model, jd_text, jd_analysis, resume_data, prior_letter, tone, tracker
         )
         yield sse_event({"stage": 3, "status": "complete"})
 
@@ -1012,6 +1099,10 @@ async def run_cover_letter_pipeline(
                     "relevance": match_report.relevance_score,
                     "candidate_name": resume_data.get("profile", {}).get("name", ""),
                     "tone": tone,
+                    "timing": {
+                        "elapsed_seconds": round(tracker.elapsed, 2),
+                        "total_tokens": tracker.total_tokens,
+                    },
                 },
             }
         )

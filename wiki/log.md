@@ -110,3 +110,35 @@ Implemented Semantic ATS Mapping — a framework for producing more natural, con
 - `index.md` updated to reflect 5-stage pipeline
 - `architecture/pipeline.md` updated with semantic mapping, unified strategy, tone control, and keyword mapping details
 - `decisions/index.md` updated with ADR-007 entry
+
+---
+
+## [2026-07-02] update | Generation metrics tracking (tokens/time) + llamacpp timeout fix
+
+Added end-to-end generation metrics (completion tokens + wall-clock elapsed time) across the tailoring and cover-letter pipelines, plus fixed a Stage 3 request-timeout bug on the `llamacpp` provider surfaced while testing this feature.
+
+### Decision
+- Created `wiki/decisions/2026-07-02_generation-metrics-tracking.md` — ADR-008 documenting the feature and the related timeout fix
+
+### Pipeline changes (`customizer/pipeline.py`)
+- Added `MetricsTracker` class — async-context-manager wrapper around each `instructor` LLM call, summing `completion_tokens` and tracking wall-clock elapsed time since pipeline start
+- `analyze_jd`, `tailor_profile`, `tailor_experience`, `tailor_projects`, `tailor_all_sections`, `generate_cover_letter` now accept an optional `tracker` param
+- `run_pipeline` and `run_cover_letter_pipeline` attach `{elapsed_seconds, total_tokens}` to the `"final"` SSE event as `data.timing`
+- Raised `llamacpp` client `timeout` 120s → 600s (`get_instructor_client`) — Stage 3's 3 concurrent calls queue behind each other on typical single-slot local llama.cpp servers, so the last-queued call could exceed the old timeout while still waiting
+
+### History changes (`customizer/history_manager.py`, `customizer/server.py`)
+- `save_resume_history` / `save_cover_letter_history` accept a `timing` field, written to `_meta.json` only when present (omitted, not `null`, for backward compatibility with pre-existing entries)
+- `/api/generate` passes `incoming_meta.get("timing")` through from the frontend's `_meta` payload
+
+### Frontend changes (`customizer/static/app.js`)
+- New shared `renderTimingHtml()` / `formatDuration()` helpers
+- Metrics line added to both the AI-tailoring diff preview (`applyTailoredData`) and the cover-letter preview (`renderCoverLetterPreview`)
+- New "METRICS" column in both resume and cover-letter history tables (tok/tok-s/elapsed, computed client-side)
+- Stats tab chart: new dashed "Avg tok/s" line plotted against a secondary right-side axis (`y1`), separate from the left count axis; tooltip now also shows avg generation time per bucket
+
+### Stats backend changes (`customizer/server_additions.py`)
+- `_aggregate_history` computes `avg_tokens_per_sec` and `avg_elapsed_seconds` per bucket from whatever entries in that bucket carry `timing` data; `None` for buckets with no timed entries
+
+### Architecture impact
+- `architecture/pipeline.md` updated: noted `MetricsTracker` cross-cutting instrumentation and the local-provider queuing behavior behind the timeout fix
+- `decisions/index.md` updated with ADR-008 entry

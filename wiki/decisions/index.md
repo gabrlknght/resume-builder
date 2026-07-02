@@ -99,3 +99,16 @@ Recorded architectural and project decisions with rationale.
   - - More LLM output per tailoring session (semantic_concepts + tone_cues)
   - - Stage 3.5 adds ~200ms deterministic computation (negligible)
   - - Semantic concepts are free-form text from the LLM; quality depends on Stage 1 prompt
+
+## ADR-008: Generation Metrics Tracking (Tokens/Time)
+
+- **Date:** 2026-07-02
+- **Status:** Accepted
+- **Context:** Users running local providers (llama.cpp/Ollama) had no visibility into token counts, elapsed time, or throughput per generation.
+- **Decision:** Added a `MetricsTracker` wrapping every LLM call to sum completion tokens and wall-clock elapsed time, surfaced through history tables, both preview panes, and a dual-axis "Avg tok/s" line on the Stats chart. Also raised the `llamacpp` client timeout 120s → 600s after discovering Stage 3's concurrent calls queue behind each other on single-slot local servers. See [[2026-07-02_generation-metrics-tracking]] for full detail.
+- **Consequences:**
+  - + Per-generation throughput and duration visible across tables, previews, and a trend chart
+  - + Metrics degrade gracefully for pre-existing history (no `timing` key)
+  - + Timeout fix reduces spurious Stage 3 failures for local providers
+  - - Token counts depend on the provider populating a `usage` block; not guaranteed for all OpenAI-compatible local servers
+  - - Stage 3 still fires concurrently against local providers — the timeout bump papers over queuing rather than avoiding it

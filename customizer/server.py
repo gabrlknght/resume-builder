@@ -104,6 +104,7 @@ async def generate(request: Request):
         company=incoming_meta.get("company", ""),
         job_title=incoming_meta.get("job_title", ""),
         match_score=incoming_meta.get("match_score"),
+        timing=incoming_meta.get("timing"),
     )
 
     # Move generated PDF to history folder
