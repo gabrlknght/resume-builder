@@ -663,7 +663,7 @@ def build_keyword_matrix(
     seen: set[tuple[str, str]] = set()
     unique = []
     for m in matrix:
-        key = (m["extracted_keyword"], m["new_position"][:80])
+        key = (m["extracted_keyword"], m["new_position"])
         if key not in seen:
             seen.add(key)
             unique.append(m)
