@@ -46,6 +46,33 @@ User moved to AMD machine, added llama.cpp as a local LLM provider alongside oll
 - Code changes: `customizer/pipeline.py` (llamacpp provider config, `MAX_OUTPUT_TOKENS=2048`, `_local_extra_kwargs` to disable thinking), `customizer/server.py` (base_url normalization for llamacpp), `customizer/static/app.js` (model fetch from `/v1/models`, default settings), `customizer/templates/index.html` (dropdown + datalist entries)
 - Key features: reasoning chains disabled for structured output, 2048-token hard ceiling on all pipeline calls, auto model discovery from running llama.cpp server
 
+## [2026-07-02] update | Semantic ATS Mapping — post-review bug fixes and improvements
+
+Senior code review of the `semantic-ats-mapping` branch. Two P0 bugs, two P1 design gaps, and three P2/P3 improvements identified and fixed. Overall assessment: local model delivered a solid B+ — correct on happy path, architecture sound, bugs confined to last-mile wiring and edge-case logic.
+
+### Bugs fixed
+
+- **[P0] Cover letter tone silently dropped** — `tone` was received by `run_cover_letter_pipeline()` but never forwarded to `generate_cover_letter()`. Cover letter tone UI selector had no effect. Fixed by adding `tone` param to `generate_cover_letter()`, converting `COVER_LETTER_SYSTEM` to a format string with `{tone}` placeholder, and threading it through the call.
+- **[P0] Keyword matrix `break` dropped multi-keyword bullets** — `break` after first keyword match per bullet caused all subsequent keyword matches in the same bullet to be silently skipped. Removed `break`; deduplication set at the end handles uniqueness.
+- **[P1] Positional diff invalidated by bullet reordering** — `_diff_bullets()` matched by index, but Stage 3 prompts explicitly allow reordering bullets. If the LLM reordered bullets, diffs produced incorrect "original → tailored" pairs. Removed `_diff_bullets()` entirely; `build_keyword_matrix()` now iterates all tailored bullets directly.
+
+### Design improvements
+
+- **[P1] Section-specific strategy addenda restored** — consolidation into `STAGE3_REWRITE_STRATEGY` removed experience and projects rules ("may reorder bullets", "reorder techs only, no additions"). Added `STAGE3_EXPERIENCE_STRATEGY` and `STAGE3_PROJECTS_STRATEGY` as section-specific addenda (same pattern as `STAGE3_PROFILE_STRATEGY`).
+- **[P2] `tone_cues` wired into Stage 3** — Stage 1 paid to extract JD tone cues but Stage 3 discarded them. Now passed to each `tailor_*()` user message as `JD tone cues: ...`.
+- **[P2] Redundant tone removed from user messages** — `f"Tone: {tone}\n\n"` was in every user message AND in the system prompt. Removed from user messages.
+- **[P3] `_tailor_context()` return annotation corrected** — was `-> str`, now `-> dict`.
+- **[P3] `Semantic-ATS-Mapping.md` broken template variable** — `{{resume_\ntext}}` split across lines fixed to `{{resume_text}}`.
+
+### Files changed
+- `customizer/pipeline.py` — all of the above
+- `Semantic-ATS-Mapping.md` — template variable fix
+- `wiki/decisions/2026-07-02_semantic-ats-mapping.md` — Amendments section added
+- `wiki/decisions/index.md` — ADR-007 status updated to "Accepted, Amended"
+- `wiki/architecture/pipeline.md` — corrected implementation descriptions
+
+---
+
 ## [2026-07-02] update | Semantic ATS Mapping framework
 
 Implemented Semantic ATS Mapping — a framework for producing more natural, contextually-aware resume rewrites via semantic concept extraction, unified rewriting strategy, keyword traceability, and tone control.

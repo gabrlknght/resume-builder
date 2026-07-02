@@ -87,14 +87,15 @@ Recorded architectural and project decisions with rationale.
 ## ADR-007: Semantic ATS Mapping Framework
 
 - **Date:** 2026-07-02
-- **Status:** Accepted
+- **Status:** Accepted — Amended 2026-07-02 (post-review fixes; see ADR file for full amendment log)
 - **Context:** The original pipeline used keyword-level matching (Stage 2) and simple keyword injection (Stage 3). This produced resumes that mentioned JD terms but often read unnaturally — the semantic intent behind requirements (e.g., "cross-functional leadership" vs. just "led team") was lost. Users also had no control over resume tone and no way to verify which keywords the LLM actually embedded.
-- **Decision:** Implement a Semantic ATS Mapping framework that extends Stage 1 to extract semantic concepts and tone cues, replaces three disjointed Stage 3 prompts with a unified rewriting strategy, adds a deterministic Stage 3.5 keyword mapping matrix, and adds a tone parameter to all LLM prompts.
+- **Decision:** Implement a Semantic ATS Mapping framework that extends Stage 1 to extract semantic concepts and tone cues, replaces three disjointed Stage 3 prompts with a unified rewriting strategy (with section-specific addenda), adds a deterministic Stage 3.5 keyword mapping matrix, and adds a tone parameter to all LLM prompts including cover letters.
 - **Consequences:**
   - + Semantic concepts capture thematic intent, not just string matches
-  - + Unified strategy ensures consistent rewriting ethos across sections
-  - + Keyword mapping matrix provides auditability
-  - + Tone control lets users match the desired register
+  - + Section-specific strategy addenda restore precision lost in consolidation
+  - + Keyword mapping matrix provides auditability (position-independent, all keywords per bullet recorded)
+  - + Tone control works for both resume tailoring and cover letter generation
+  - + `tone_cues` from Stage 1 now feed into Stage 3 as supplemental context
   - - More LLM output per tailoring session (semantic_concepts + tone_cues)
   - - Stage 3.5 adds ~200ms deterministic computation (negligible)
   - - Semantic concepts are free-form text from the LLM; quality depends on Stage 1 prompt

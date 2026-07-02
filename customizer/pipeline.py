@@ -460,8 +460,22 @@ Do NOT include any "thought", reasoning, or explanation text outside the JSON.""
 
 STAGE3_PROFILE_STRATEGY = STAGE3_REWRITE_STRATEGY + "\n\nRewrite the profile section (bio and title) to align with the target role while preserving the candidate's identity and core expertise."
 
+STAGE3_EXPERIENCE_STRATEGY = STAGE3_REWRITE_STRATEGY + """
 
-def _tailor_context(jd_analysis: JDAnalysis, tone: str, section_type: str) -> str:
+Experience-specific rules:
+- You may reorder bullets within a role to lead with the most ATS-relevant achievements
+- Preserve company names, dates, locations, logos, and role start/end dates exactly
+- Quantify impact using: [Action Verb] + [What] + [How] + [Result]"""
+
+STAGE3_PROJECTS_STRATEGY = STAGE3_REWRITE_STRATEGY + """
+
+Projects-specific rules:
+- You may reorder the technologies list to surface the most role-relevant ones first, but only keep technologies already present — do not add new ones
+- Preserve project titles, live URLs, images, and status fields exactly as given
+- Keep descriptions concise and focused on technical impact"""
+
+
+def _tailor_context(jd_analysis: JDAnalysis, tone: str, section_type: str) -> dict:
     """Build the shared context dict for Stage 3 section calls."""
     must_haves = [r.skill for r in jd_analysis.requirements if r.priority == "must_have"]
     semantic = jd_analysis.semantic_concepts if jd_analysis.semantic_concepts else []
@@ -472,6 +486,7 @@ def _tailor_context(jd_analysis: JDAnalysis, tone: str, section_type: str) -> st
         "domain": jd_analysis.domain,
         "must_have": must_haves,
         "semantic_concepts": semantic,
+        "tone_cues": jd_analysis.tone_cues or "",
     }
     if section_type == "experience":
         ctx["ats_keywords"] = jd_analysis.ats_keywords[:20]
@@ -483,6 +498,7 @@ async def tailor_profile(
 ) -> TailoredProfile:
     ctx = _tailor_context(jd_analysis, tone, "profile")
     strategy = STAGE3_PROFILE_STRATEGY.format(**ctx)
+    tone_cues_line = f"JD tone cues: {ctx['tone_cues']}\n" if ctx["tone_cues"] else ""
     response = await client.chat.completions.create(
         model=model,
         messages=[
@@ -494,8 +510,8 @@ async def tailor_profile(
                     f"Key requirements: {ctx['must_have']}\n"
                     f"Semantic concepts: {ctx['semantic_concepts']}\n"
                     f"Domain: {ctx['domain']}\n"
-                    f"Tone: {tone}\n\n"
-                    f"Current profile:\n{json.dumps(profile, indent=2)}"
+                    + tone_cues_line
+                    + f"\nCurrent profile:\n{json.dumps(profile, indent=2)}"
                 ),
             },
         ],
@@ -511,7 +527,8 @@ async def tailor_experience(
     client, experience: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
 ) -> ExperienceList:
     ctx = _tailor_context(jd_analysis, tone, "experience")
-    strategy = STAGE3_REWRITE_STRATEGY.format(**ctx)
+    strategy = STAGE3_EXPERIENCE_STRATEGY.format(**ctx)
+    tone_cues_line = f"JD tone cues: {ctx['tone_cues']}\n" if ctx["tone_cues"] else ""
     response = await client.chat.completions.create(
         model=model,
         messages=[
@@ -524,8 +541,8 @@ async def tailor_experience(
                     f"ATS keywords: {ctx['ats_keywords']}\n"
                     f"Semantic concepts: {ctx['semantic_concepts']}\n"
                     f"Domain: {ctx['domain']}\n"
-                    f"Tone: {tone}\n\n"
-                    f"Current experience:\n{json.dumps(experience.get('experience', []), indent=2)}"
+                    + tone_cues_line
+                    + f"\nCurrent experience:\n{json.dumps(experience.get('experience', []), indent=2)}"
                 ),
             },
         ],
@@ -541,7 +558,8 @@ async def tailor_projects(
     client, projects: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
 ) -> ProjectList:
     ctx = _tailor_context(jd_analysis, tone, "projects")
-    strategy = STAGE3_REWRITE_STRATEGY.format(**ctx)
+    strategy = STAGE3_PROJECTS_STRATEGY.format(**ctx)
+    tone_cues_line = f"JD tone cues: {ctx['tone_cues']}\n" if ctx["tone_cues"] else ""
     response = await client.chat.completions.create(
         model=model,
         messages=[
@@ -553,8 +571,8 @@ async def tailor_projects(
                     f"Key requirements: {ctx['must_have']}\n"
                     f"Semantic concepts: {ctx['semantic_concepts']}\n"
                     f"Domain: {ctx['domain']}\n"
-                    f"Tone: {tone}\n\n"
-                    f"Current projects:\n{json.dumps(projects.get('projects', []), indent=2)}"
+                    + tone_cues_line
+                    + f"\nCurrent projects:\n{json.dumps(projects.get('projects', []), indent=2)}"
                 ),
             },
         ],
@@ -587,17 +605,6 @@ async def tailor_all_sections(
 # ---------------------------------------------------------------------------
 # Stage 4: Validate & Assemble
 # ---------------------------------------------------------------------------
-def _diff_bullets(original_bullets: list[str], tailored_bullets: list[str]) -> list[dict]:
-    """Simple diff: match by position and compare. Returns list of {original, tailored} pairs."""
-    pairs = []
-    for i in range(max(len(original_bullets), len(tailored_bullets))):
-        orig = original_bullets[i] if i < len(original_bullets) else ""
-        tail = tailored_bullets[i] if i < len(tailored_bullets) else ""
-        if orig != tail:
-            pairs.append({"original": orig, "tailored": tail})
-    return pairs
-
-
 def build_keyword_matrix(
     original_data: dict,
     tailored_sections: dict,
@@ -605,39 +612,37 @@ def build_keyword_matrix(
 ) -> list[dict]:
     """Deterministic keyword mapping matrix.
 
-    For each JD keyword that appears in the tailored output, find where it landed
-    by diffing original vs. tailored bullets and checking keyword presence.
+    For each tailored bullet/description, record every JD keyword it contains.
+    Pairs the tailored text with the original at the same position as best-effort
+    context — no positional diff assumption, no single-keyword-per-bullet limit.
     """
     matrix = []
     keywords = jd_analysis.ats_keywords[:15]
     if not keywords:
         return matrix
 
-    # Gather original and tailored bullets from experience and projects
+    def _truncate(s: str, n: int = 120) -> str:
+        return s[:n] + ("..." if len(s) > n else "")
+
     orig_exp = original_data.get("experience", {}).get("experience", [])
     tail_exp = tailored_sections.get("experience", {}).get("experience", [])
 
     for i in range(min(len(orig_exp), len(tail_exp))):
         orig_bullets = orig_exp[i].get("details", [])
         tail_bullets = tail_exp[i].get("details", [])
-        diffs = _diff_bullets(orig_bullets, tail_bullets)
+        context = f"{tail_exp[i].get('role', '')} at {tail_exp[i].get('company', '')}"
 
-        for diff in diffs:
-            orig_text = diff["original"]
-            tail_text = diff["tailored"]
+        for j, tail_text in enumerate(tail_bullets):
+            orig_text = orig_bullets[j] if j < len(orig_bullets) else ""
             for kw in keywords:
-                kw_lower = kw.lower()
-                # Keyword appears in tailored but not original, or both but rephrased
-                if kw_lower in tail_text.lower():
+                if kw.lower() in tail_text.lower():
                     matrix.append({
                         "extracted_keyword": kw,
-                        "original_phrasing": orig_text[:120] + ("..." if len(orig_text) > 120 else ""),
-                        "new_position": tail_text[:120] + ("..." if len(tail_text) > 120 else ""),
-                        "context": f"{orig_exp[i].get('role', '')} at {orig_exp[i].get('company', '')}",
+                        "original_phrasing": _truncate(orig_text),
+                        "new_position": _truncate(tail_text),
+                        "context": context,
                     })
-                    break  # One entry per diff pair per company
 
-    # Also check projects
     orig_proj = original_data.get("projects", {}).get("projects", [])
     tail_proj = tailored_sections.get("projects", {}).get("projects", [])
 
@@ -649,14 +654,13 @@ def build_keyword_matrix(
                 if kw.lower() in tail_desc.lower():
                     matrix.append({
                         "extracted_keyword": kw,
-                        "original_phrasing": orig_desc[:120] + ("..." if len(orig_desc) > 120 else ""),
-                        "new_position": tail_desc[:120] + ("..." if len(tail_desc) > 120 else ""),
-                        "context": orig_proj[i].get("title", ""),
+                        "original_phrasing": _truncate(orig_desc),
+                        "new_position": _truncate(tail_desc),
+                        "context": tail_proj[i].get("title", ""),
                     })
-                    break
 
-    # Deduplicate by (keyword, position)
-    seen = set()
+    # Deduplicate by (keyword, new_position)
+    seen: set[tuple[str, str]] = set()
     unique = []
     for m in matrix:
         key = (m["extracted_keyword"], m["new_position"][:80])
@@ -867,7 +871,8 @@ Rules:
 - 3-4 paragraphs: strong opening hook, relevant experience proof, value proposition, call-to-action close
 - Mirror ATS keywords from the JD naturally — never stuff them awkwardly
 - Highlight 2-3 specific, quantified achievements from the resume that directly address the role
-- Professional but authentic tone — avoid stiff boilerplate phrases like "I am writing to express my interest"
+- Tone: {tone} — let this shape word choice, sentence rhythm, and formality throughout
+- Avoid stiff boilerplate phrases like "I am writing to express my interest"
 - Opening: reference the specific role AND company; lead with a compelling hook
 - If a prior cover letter is provided: preserve the candidate's authentic voice but sharpen relevance,
   fix weaknesses, and ensure all key JD requirements are addressed. List improvements in improvements_from_prior.
@@ -877,9 +882,9 @@ Output must be a complete, ready-to-send cover letter split into the structured 
 
 OUTPUT FORMAT: Return a flat JSON object with fields at the root level.
 Do NOT wrap fields inside a "properties" key. Do NOT include a "thought" or reasoning key.
-Correct:   {"subject_line": "...", "salutation": "...", "opening_paragraph": "..."}
-Incorrect: {"properties": {"subject_line": "..."}}
-Incorrect: {"thought": "...", "subject_line": "..."}"""
+Correct:   {{"subject_line": "...", "salutation": "...", "opening_paragraph": "..."}}
+Incorrect: {{"properties": {{"subject_line": "..."}}}}
+Incorrect: {{"thought": "...", "subject_line": "..."}}"""
 
 
 async def generate_cover_letter(
@@ -889,6 +894,7 @@ async def generate_cover_letter(
     jd_analysis: JDAnalysis,
     resume_data: dict,
     prior_letter: Optional[str] = None,
+    tone: str = "professional",
 ) -> CoverLetterOutput:
     profile = resume_data.get("profile", {})
     candidate_name = profile.get("name", "the candidate")
@@ -925,7 +931,7 @@ async def generate_cover_letter(
     response = await client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": COVER_LETTER_SYSTEM},
+            {"role": "system", "content": COVER_LETTER_SYSTEM.format(tone=tone)},
             {"role": "user", "content": user_msg},
         ],
         response_model=CoverLetterOutput,
@@ -983,7 +989,7 @@ async def run_cover_letter_pipeline(
         )
         yield sse_event({"stage": 3, "status": "in_progress", "message": stage3_msg})
         cover_letter = await generate_cover_letter(
-            client, model, jd_text, jd_analysis, resume_data, prior_letter
+            client, model, jd_text, jd_analysis, resume_data, prior_letter, tone
         )
         yield sse_event({"stage": 3, "status": "complete"})
 

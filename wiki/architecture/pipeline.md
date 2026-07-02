@@ -2,6 +2,7 @@
 title: AI Tailoring Pipeline
 type: architecture
 last_updated: 2026-07-02
+amended: 2026-07-02
 sources: [AGENTS.md, customizer/pipeline.py, customizer/TAILOR_SKILL.md]
 ---
 
@@ -29,11 +30,11 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 
 **Semantic ATS Mapping** — (Added 2026-07-02) The pipeline now extracts semantic concepts and tone cues from JD analysis (Stage 1), and uses them throughout Stage 3 to produce more natural, contextually-aware resume rewrites. Keywords are embedded with attention to thematic alignment, not just string matching.
 
-**Unified rewriting strategy** — (Updated 2026-07-02) Stage 3 replaces three disjointed section prompts with a shared `STAGE3_REWRITE_STRATEGY` that enforces consistent semantic mapping, preservation rules, and honesty constraints across profile, experience, and projects.
+**Unified rewriting strategy with section-specific addenda** — (Updated 2026-07-02) Stage 3 uses a shared `STAGE3_REWRITE_STRATEGY` base that enforces consistent semantic mapping, preservation rules, and honesty constraints. Each section extends it with targeted rules: `STAGE3_PROFILE_STRATEGY` (identity preservation), `STAGE3_EXPERIENCE_STRATEGY` (bullet reordering allowed, quantification format), `STAGE3_PROJECTS_STRATEGY` (tech reordering allowed, strict field preservation for title/URL/image/status).
 
-**Keyword Mapping Matrix** — (Added 2026-07-02) Stage 3.5 deterministically diffs original vs. tailored bullets and traces where each JD keyword landed in the rewritten resume. This provides auditability — users can verify the LLM actually embedded the requested keywords.
+**Keyword Mapping Matrix** — (Added 2026-07-02) Stage 3.5 traces where each JD keyword landed in the tailored resume. Implementation: iterates all tailored bullets directly, records every keyword match per bullet (no single-match-per-bullet limit), pairs with the original at the same index as best-effort context. No positional diff assumption — immune to bullet reordering by the LLM. Deduplicates by `(keyword, new_position)`.
 
-**Tone control** — (Added 2026-07-02) Users select tone (Professional, Formal, Innovative, Collaborative, Technical, Conversational) from the UI. The tone is injected into all Stage 3 prompts, ensuring the rewritten resume matches the desired register.
+**Tone control** — (Added 2026-07-02) Users select tone (Professional, Formal, Innovative, Collaborative, Technical, Conversational) from the UI. Tone is injected via `{tone}` placeholder in all Stage 3 system prompts and in `COVER_LETTER_SYSTEM`. Additionally, `tone_cues` (LLM-inferred tone signals from the JD text, extracted in Stage 1) are passed to each `tailor_*()` user message as supplemental context, giving the model both the explicit user preference and observed JD language register.
 
 **Structured output via `instructor`** — Pydantic models define expected LLM output shape. `instructor` handles automatic retry on validation failures. No manual JSON parsing.
 
