@@ -837,10 +837,11 @@ function updateProgress(pct, message) {
 
 function handlePipelineEvent(event) {
     const stageMap = {
-        1: { pct: 10, label: "Stage 1/4: Analyzing job description..." },
-        2: { pct: 35, label: "Stage 2/4: Matching resume to requirements..." },
-        3: { pct: 65, label: "Stage 3/4: Tailoring resume sections..." },
-        4: { pct: 90, label: "Stage 4/4: Validating output..." },
+        1: { pct: 10, label: "Stage 1/5: Analyzing job description..." },
+        2: { pct: 30, label: "Stage 2/5: Matching resume to requirements..." },
+        3: { pct: 55, label: "Stage 3/5: Tailoring resume sections..." },
+        35: { pct: 75, label: "Stage 3.5/5: Building keyword mapping matrix..." },
+        4: { pct: 90, label: "Stage 4/5: Validating output..." },
     };
 
     if (event.status === "error") {
@@ -997,6 +998,7 @@ async function tailorResume() {
 
     const provider = document.getElementById("ai-provider").value;
     const model = document.getElementById("ai-model").value;
+    const tone = document.getElementById("ai-tone").value || "professional";
     let baseUrl = document.getElementById("ai-base-url").value;
     const apiKey = document.getElementById("ai-api-key").value;
 
@@ -1021,6 +1023,7 @@ async function tailorResume() {
 
         const payload = {
             jd: jd,
+            tone: tone,
             config: {
                 provider: provider,
                 model: model,
@@ -1297,6 +1300,7 @@ async function generateCoverLetter() {
     }
 
     const priorLetter = (document.getElementById("cl-prior").value || "").trim();
+    const tone = document.getElementById("cl-tone").value || "professional";
     const provider = document.getElementById("cl-provider").value;
     const model = document.getElementById("cl-model").value;
     let baseUrl = document.getElementById("cl-base-url").value;
@@ -1321,6 +1325,7 @@ async function generateCoverLetter() {
     try {
         const payload = {
             jd,
+            tone: tone,
             prior_letter: priorLetter || "",
             config: { provider, model, base_url: baseUrl, api_key: apiKey },
             data: collectPayload(),

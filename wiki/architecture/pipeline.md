@@ -1,27 +1,40 @@
 ---
 title: AI Tailoring Pipeline
 type: architecture
-last_updated: 2026-06-16
+last_updated: 2026-07-02
+amended: 2026-07-02
 sources: [AGENTS.md, customizer/pipeline.py, customizer/TAILOR_SKILL.md]
 ---
 
 # AI Tailoring Pipeline
 
-The `/api/tailor` endpoint implements a 4-stage pipeline that replaces the original single-prompt approach. Each stage has a focused responsibility and dedicated cost profile.
+The `/api/tailor` endpoint implements a 5-stage pipeline (originally 4, now includes Stage 3.5: Keyword Mapping) that replaces the original single-prompt approach. Each stage has a focused responsibility and dedicated cost profile. The SSE `stage` field uses integer IDs (`1`, `2`, `3`, `35`, `4`) so the frontend can map progress without floating-point lookup issues.
 
 ## Stages
 
 ```
 Stage 1: JD Analysis       — Extracts structured requirements from JD text
                              LLM call, temperature=0.1
+                             Outputs: JDAnalysis model (keywords, semantic concepts, tone cues)
 Stage 2: Match & Score     — Deterministic keyword matching, no LLM cost
                              Early exit if relevance ≤ 2
 Stage 3: Section Tailoring — 3 parallel LLM calls via asyncio.gather
                              (profile, experience, projects)
+Stage 3.5: Keyword Mapping — Deterministic diff-based keyword traceability
+                             NEW (2026-07-02): produces mapping matrix
 Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + eval metrics
+                             + injects keyword_mapping into final output
 ```
 
 ## Key Design Choices
+
+**Semantic ATS Mapping** — (Added 2026-07-02) The pipeline now extracts semantic concepts and tone cues from JD analysis (Stage 1), and uses them throughout Stage 3 to produce more natural, contextually-aware resume rewrites. Keywords are embedded with attention to thematic alignment, not just string matching.
+
+**Unified rewriting strategy with section-specific addenda** — (Updated 2026-07-02) Stage 3 uses a shared `STAGE3_REWRITE_STRATEGY` base that enforces consistent semantic mapping, preservation rules, and honesty constraints. Each section extends it with targeted rules: `STAGE3_PROFILE_STRATEGY` (identity preservation), `STAGE3_EXPERIENCE_STRATEGY` (bullet reordering allowed, quantification format), `STAGE3_PROJECTS_STRATEGY` (tech reordering allowed, strict field preservation for title/URL/image/status).
+
+**Keyword Mapping Matrix** — (Added 2026-07-02) Stage 3.5 traces where each JD keyword landed in the tailored resume. Implementation: iterates all tailored bullets directly, records every keyword match per bullet (no single-match-per-bullet limit), pairs with the original at the same index as best-effort context. No positional diff assumption — immune to bullet reordering by the LLM. Deduplicates by `(keyword, new_position)`.
+
+**Tone control** — (Added 2026-07-02) Users select tone (Professional, Formal, Innovative, Collaborative, Technical, Conversational) from the UI. Tone is injected via `{tone}` placeholder in all Stage 3 system prompts and in `COVER_LETTER_SYSTEM`. Additionally, `tone_cues` (LLM-inferred tone signals from the JD text, extracted in Stage 1) are passed to each `tailor_*()` user message as supplemental context, giving the model both the explicit user preference and observed JD language register.
 
 **Structured output via `instructor`** — Pydantic models define expected LLM output shape. `instructor` handles automatic retry on validation failures. No manual JSON parsing.
 
@@ -35,12 +48,13 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 - Locations
 - URLs (liveUrl, socials, etc.)
 
-**Parallel tailoring** — Stage 3 runs three LLM calls concurrently (`asyncio.gather`) for profile, experience, and projects. Reduces latency vs. sequential calls.
+**Parallel tailoring** — Stage 3 runs three LLM calls concurrently (`asyncio.gather`) for profile, experience, and projects. All three calls share the same rewriting strategy template with injected context (tone, semantic concepts, must-have keywords). Reduces latency vs. sequential calls.
 
 **Eval metrics** — Stage 4 computes:
 - `job_alignment_score` — how well tailored output matches JD keywords
 - `content_preservation` — how much original content was kept
 - `hallucinated_numbers` — detected fabricated metrics (should be 0)
+- **keyword_mapping** — (Added 2026-07-02) deterministic traceability table injected into final output by Stage 3.5
 
 ## Tailoring Rules (from TAILOR_SKILL.md)
 
@@ -72,7 +86,7 @@ Before tailoring, rate the JD on a 1–10 scale:
 | 3–4 | Weak match — significant gaps |
 | 1–2 | Poor match — mostly different skills |
 
-If rating ≤ 3, ask user whether to proceed.
+If rating ≤ 2, pipeline auto-exits without tailoring (early-out).
 
 ## Anti-Slop Rules
 

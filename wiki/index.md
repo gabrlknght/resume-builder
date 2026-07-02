@@ -1,7 +1,7 @@
 ---
 title: Wiki Index
 type: index
-last_updated: 2026-06-28
+last_updated: 2026-07-02
 sources: [wiki/SCHEMA.md, data/profile.json, data/experience.json, data/projects.json, data/skills.json, data/education.json]
 ---
 
@@ -20,7 +20,7 @@ Read this file first when answering queries. Each entry links to a wiki page wit
 ## Architecture
 
 - [System Architecture](architecture/system.md) — FastAPI backend, JSON→LaTeX pipeline, CI/CD, web UI stack
-- [AI Tailoring Pipeline](architecture/pipeline.md) — 4-stage LLM pipeline: JD analysis, matching, tailoring, validation
+- [AI Tailoring Pipeline](architecture/pipeline.md) — 5-stage LLM pipeline (added Stage 3.5: keyword mapping): JD analysis, matching, tailoring, keyword traceability, validation
 
 ## Decisions
 
