@@ -1476,7 +1476,7 @@ function renderClHistoryTable(data) {
             const rate = timing.elapsed_seconds && timing.elapsed_seconds > 0
                 ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
                 : "";
-            metricsHtml = `${tok} tokens${secs ? ` / ${secs}` : ''}${rate ? ` (${rate})` : ''}`;
+            metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ''}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ''}`;
         }
         const pdfLink = `<button type="button" class="btn-secondary btn-small" onclick="printClHistoryEntry('${esc(entry.id)}')" title="Open print/PDF dialog">PDF</button>`;
         const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
@@ -1491,7 +1491,7 @@ function renderClHistoryTable(data) {
             <td>${esc(entry.company || "—")}</td>
             <td>${esc(entry.job_title || "—")}</td>
             <td>${scoreHtml}</td>
-            <td style="white-space:nowrap; font-family:JetBrains Mono,monospace; font-size:11px;">${metricsHtml}</td>
+            <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:pre-line;">${metricsHtml}</td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">${txtLink}</td>
             <td style="white-space:nowrap;">
@@ -1614,7 +1614,7 @@ function renderHistoryTable(data) {
             const rate = timing.elapsed_seconds && timing.elapsed_seconds > 0
                 ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
                 : "";
-            metricsHtml = `${tok} tokens${secs ? ` / ${secs}` : ''}${rate ? ` (${rate})` : ''}`;
+            metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ''}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ''}`;
         }
         const pdfLink = entry.pdf_filename
             ? `<a href="/api/history/file/${entry.id}/${entry.pdf_filename}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
@@ -1630,7 +1630,7 @@ function renderHistoryTable(data) {
             <td>${esc(entry.company || "—")}</td>
             <td>${esc(entry.job_title || "—")}</td>
             <td>${scoreHtml}</td>
-            <td style="white-space:nowrap; font-family:JetBrains Mono,monospace; font-size:11px;">${metricsHtml}</td>
+            <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:pre-line;">${metricsHtml}</td>
             <td><span class="${hiredClass}" onclick="toggleHired('${esc(entry.id)}', ${entry.hired}, this)" title="Click to toggle">${hiredLabel}</span></td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">

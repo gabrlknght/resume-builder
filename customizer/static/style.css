@@ -264,7 +264,7 @@ button:active {
 /* ---- Sections ---- */
 .section {
     display: none;
-    max-width: 600px;
+    max-width: 1200px;
 }
 
 .section.active {

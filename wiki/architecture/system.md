@@ -79,6 +79,19 @@ Key UI features:
 - AI Tailoring: paste JD → 4-stage pipeline runs → visual diff shown
 - BYOK: choose provider + model + API key in UI
 
+## History Tables
+
+Both the **Resume History** and **Cover Letter History** tables have icon-based metrics display:
+
+- **Metrics column** uses emoji icons instead of text labels:
+  - 🔢 = tokens (count)
+  - ⏱ = elapsed time (e.g. `12.3s`)
+  - ⚡ = throughput (e.g. `1002 tok/s`)
+- Each icon has a `title` attribute showing the label on hover
+- Metrics display across two lines via `white-space: pre-line` (wraps instead of overflowing)
+- Table max-width is `1200px` (wide enough to avoid horizontal scroll on typical screens)
+- Cell padding is `0.4rem 0.5rem` (top/bottom 0.4rem, left/right 0.5rem) — horizontal padding matches
+
 ## Frontend Build
 
 The server serves **minified** files (`app.min.js`, `style.min.css`). After editing `app.js` or `style.css`, run:

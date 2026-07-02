@@ -142,3 +142,22 @@ Added end-to-end generation metrics (completion tokens + wall-clock elapsed time
 ### Architecture impact
 - `architecture/pipeline.md` updated: noted `MetricsTracker` cross-cutting instrumentation and the local-provider queuing behavior behind the timeout fix
 - `decisions/index.md` updated with ADR-008 entry
+
+## [2026-07-02] update | History table metrics icons + table width expansion
+
+Improved the history tables' metrics display and widened both table containers for better readability.
+
+### Frontend changes (`customizer/static/app.js`)
+- Replaced text-based metrics labels (`xxxxx tokens / xxx.xxs (xx tok/s)`) with three emoji icons:
+  - 🔢 = tokens, ⏱ = elapsed time, ⚡ = throughput (tok/s)
+- Each icon is wrapped in a `<span title="...">` so hovering shows the label ("tokens", "time", "rate")
+- Metrics now span two lines via `<br/>` breaks inside each cell, wrapped with `white-space: pre-line`
+- This makes rows narrower and eliminates the horizontal scroll bar that was previously needed
+
+### CSS changes (`customizer/static/style.css`)
+- Added `.section#section-history, .section#section-clhistory { max-width: 1200px; }` — widens both history tables from the default 600px
+- History table cell padding remains `0.4rem 0.5rem` (left/right already matched)
+- Other sections (profile, tailoring, cover letter, stats) stay at 600px
+
+### Wiki impact
+- `wiki/architecture/system.md` updated: new **History Tables** section documenting icon-based metrics display, hover titles, line wrapping, and table dimensions
