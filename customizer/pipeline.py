@@ -157,9 +157,11 @@ class JDAnalysis(BaseModel):
     requirements: list[JDRequirement]
     key_responsibilities: list[str]
     ats_keywords: list[str]
+    semantic_concepts: list[str]
+    tone_cues: str
 
     @field_validator(
-        "requirements", "key_responsibilities", "ats_keywords", mode="before"
+        "requirements", "key_responsibilities", "ats_keywords", "semantic_concepts", mode="before"
     )
     @classmethod
     def _parse_json_lists(cls, v):
@@ -320,8 +322,8 @@ def resolve_ollama_model(model_name: str) -> str:
 # ---------------------------------------------------------------------------
 # Stage 1: JD Analysis
 # ---------------------------------------------------------------------------
-STAGE1_SYSTEM = """You are an expert technical recruiter and hiring manager.
-Analyze the job description and extract structured requirements.
+STAGE1_SYSTEM = """You are a world-class Executive Resume Writer and ATS Algorithm Expert.
+Analyze the job description and extract structured requirements using Semantic ATS Mapping.
 
 For each requirement:
 - Identify the specific skill, tool, or qualification
@@ -329,7 +331,13 @@ For each requirement:
 - Assign priority: must_have (explicitly required), nice_to_have (preferred), bonus (mentioned)
 - Provide brief context of how it appears in the JD.
 Extract key responsibilities verbatim or near-verbatim from the JD.
-Identify ATS keywords that are important for this specific role."""
+Identify top 10-15 ATS keywords that are critical for this role.
+
+Additionally, extract:
+- Semantic concepts: broader thematic concepts beyond exact keywords (e.g., "cross-functional leadership", "data-driven decision making", "agile transformation", "stakeholder communication"). These are conceptual competencies the role demands, even if not phrased as explicit skills.
+- Tone cues: analyze the JD's language to infer the desired tone (e.g., "formal and authoritative", "energetic and innovative", "collaborative and warm", "technical and precise"). Return 2-3 sentences describing the tone signals you observed in the JD.
+
+Return exactly one JSON object matching the schema below — do NOT include any reasoning or explanation text outside the JSON."""
 
 
 async def analyze_jd(client, jd_text: str, model: str) -> JDAnalysis:
@@ -421,50 +429,72 @@ def compute_match_score(resume_data: dict, jd_analysis: JDAnalysis) -> MatchRepo
 # ---------------------------------------------------------------------------
 # Stage 3: Section Tailoring
 # ---------------------------------------------------------------------------
-STAGE3_PROFILE_SYSTEM = """You are an expert technical resume writer.
-Rephrase the profile bio and title to better align with the target job description.
-Preserve the candidate's name, avatar, socials, and contact info exactly.
-Keep the bio professional and concise. Do not invent experience.
+STAGE3_REWRITE_STRATEGY = """You are a world-class Executive Resume Writer and ATS Algorithm Expert specializing in Semantic ATS Mapping.
 
-IMPORTANT: Use keywords from the job requirements to enhance relevance.
+Your job: naturally embed high-value keywords and semantic concepts from the target role into the resume sections provided below. Do NOT stuff keywords awkwardly — the result must read authentically and highlight real achievements.
+
+Rewriting strategy:
+- Prioritize keywords and concepts from the JD's "must_have" requirements
+- Map semantic concepts, not just exact strings (e.g., "cross-functional leadership" can cover "led teams across departments")
+- Use action verbs and quantify results where possible
+- Lead with impact — achievement-focused phrasing
+
+Preservation rules (never change):
+- Company names, dates, locations, URLs, logos — keep exactly as given
+- Project titles and live URLs — keep exactly as given
+- Candidate's name and contact info — keep exactly as given
+
+Honesty rules (never violate):
+- Do NOT invent skills, experiences, metrics, or technologies not present or strongly implied in the original
+- Do NOT fabricate achievements — reframe existing ones, don't create new ones
+
+Tone: {tone}
 
 OUTPUT FORMAT: Return a flat JSON object with fields at the root level.
 Do NOT wrap fields inside a "properties" key.
-Correct:   {"name": "...", "title": "...", "bio": "..."}
-Incorrect: {"properties": {"name": "...", "title": "...", "bio": "..."}}"""
+Correct:   {{"name": "...", "title": "...", "bio": "..."}}
+Incorrect: {{"properties": {{"name": "...", "title": "...", "bio": "..."}}}}
+
+Do NOT include any "thought", reasoning, or explanation text outside the JSON."""
 
 
-STAGE3_EXPERIENCE_SYSTEM = """You are an expert technical resume writer.
-Rephrase experience bullet points to better align with the target job description.
-You may reorder bullets to lead with the most relevant achievements.
-Preserve company names, dates, locations, and logos exactly as given.
-Do not fabricate experience — only reframe existing achievements with relevant keywords.
-
-IMPORTANT: Use action verbs and quantify results where possible."""
+STAGE3_PROFILE_STRATEGY = STAGE3_REWRITE_STRATEGY + "\n\nRewrite the profile section (bio and title) to align with the target role while preserving the candidate's identity and core expertise."
 
 
-STAGE3_PROJECTS_SYSTEM = """You are an expert technical resume writer.
-Rephrase project descriptions to better align with the target job description.
-You may reorder technologies to highlight the most relevant ones first (only keep originals).
-Preserve project titles, URLs, statuses, and images exactly as given.
-Do not invent projects or technologies.
+def _tailor_context(jd_analysis: JDAnalysis, tone: str, section_type: str) -> str:
+    """Build the shared context dict for Stage 3 section calls."""
+    must_haves = [r.skill for r in jd_analysis.requirements if r.priority == "must_have"]
+    semantic = jd_analysis.semantic_concepts if jd_analysis.semantic_concepts else []
 
-IMPORTANT: Use relevant tech keywords in descriptions to match the target role."""
+    ctx = {
+        "tone": tone,
+        "job_title": jd_analysis.job_title,
+        "domain": jd_analysis.domain,
+        "must_have": must_haves,
+        "semantic_concepts": semantic,
+    }
+    if section_type == "experience":
+        ctx["ats_keywords"] = jd_analysis.ats_keywords[:20]
+    return ctx
 
 
 async def tailor_profile(
-    client, profile: dict, jd_analysis: JDAnalysis, model: str
+    client, profile: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
 ) -> TailoredProfile:
+    ctx = _tailor_context(jd_analysis, tone, "profile")
+    strategy = STAGE3_PROFILE_STRATEGY.format(**ctx)
     response = await client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": STAGE3_PROFILE_SYSTEM},
+            {"role": "system", "content": strategy},
             {
                 "role": "user",
                 "content": (
                     f"Job title: {jd_analysis.job_title}\n"
-                    f"Key requirements: {[r.skill for r in jd_analysis.requirements if r.priority == 'must_have']}\n"
-                    f"Domain: {jd_analysis.domain}\n\n"
+                    f"Key requirements: {ctx['must_have']}\n"
+                    f"Semantic concepts: {ctx['semantic_concepts']}\n"
+                    f"Domain: {ctx['domain']}\n"
+                    f"Tone: {tone}\n\n"
                     f"Current profile:\n{json.dumps(profile, indent=2)}"
                 ),
             },
@@ -478,18 +508,23 @@ async def tailor_profile(
 
 
 async def tailor_experience(
-    client, experience: dict, jd_analysis: JDAnalysis, model: str
+    client, experience: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
 ) -> ExperienceList:
+    ctx = _tailor_context(jd_analysis, tone, "experience")
+    strategy = STAGE3_REWRITE_STRATEGY.format(**ctx)
     response = await client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": STAGE3_EXPERIENCE_SYSTEM},
+            {"role": "system", "content": strategy},
             {
                 "role": "user",
                 "content": (
                     f"Job title: {jd_analysis.job_title}\n"
-                    f"Key requirements: {[r.skill for r in jd_analysis.requirements if r.priority == 'must_have']}\n"
-                    f"ATS keywords: {jd_analysis.ats_keywords[:20]}\n\n"
+                    f"Key requirements: {ctx['must_have']}\n"
+                    f"ATS keywords: {ctx['ats_keywords']}\n"
+                    f"Semantic concepts: {ctx['semantic_concepts']}\n"
+                    f"Domain: {ctx['domain']}\n"
+                    f"Tone: {tone}\n\n"
                     f"Current experience:\n{json.dumps(experience.get('experience', []), indent=2)}"
                 ),
             },
@@ -503,18 +538,22 @@ async def tailor_experience(
 
 
 async def tailor_projects(
-    client, projects: dict, jd_analysis: JDAnalysis, model: str
+    client, projects: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
 ) -> ProjectList:
+    ctx = _tailor_context(jd_analysis, tone, "projects")
+    strategy = STAGE3_REWRITE_STRATEGY.format(**ctx)
     response = await client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": STAGE3_PROJECTS_SYSTEM},
+            {"role": "system", "content": strategy},
             {
                 "role": "user",
                 "content": (
                     f"Job title: {jd_analysis.job_title}\n"
-                    f"Key requirements: {[r.skill for r in jd_analysis.requirements if r.priority == 'must_have']}\n"
-                    f"Domain: {jd_analysis.domain}\n\n"
+                    f"Key requirements: {ctx['must_have']}\n"
+                    f"Semantic concepts: {ctx['semantic_concepts']}\n"
+                    f"Domain: {ctx['domain']}\n"
+                    f"Tone: {tone}\n\n"
                     f"Current projects:\n{json.dumps(projects.get('projects', []), indent=2)}"
                 ),
             },
@@ -528,16 +567,16 @@ async def tailor_projects(
 
 
 async def tailor_all_sections(
-    client, resume_data: dict, jd_analysis: JDAnalysis, model: str
+    client, resume_data: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional"
 ) -> tuple[dict, list[dict], list[dict]]:
     profile_task = tailor_profile(
-        client, resume_data.get("profile", {}), jd_analysis, model
+        client, resume_data.get("profile", {}), jd_analysis, model, tone
     )
     experience_task = tailor_experience(
-        client, resume_data.get("experience", {}), jd_analysis, model
+        client, resume_data.get("experience", {}), jd_analysis, model, tone
     )
     projects_task = tailor_projects(
-        client, resume_data.get("projects", {}), jd_analysis, model
+        client, resume_data.get("projects", {}), jd_analysis, model, tone
     )
     profile, experience, projects = await asyncio.gather(
         profile_task, experience_task, projects_task
@@ -548,12 +587,93 @@ async def tailor_all_sections(
 # ---------------------------------------------------------------------------
 # Stage 4: Validate & Assemble
 # ---------------------------------------------------------------------------
+def _diff_bullets(original_bullets: list[str], tailored_bullets: list[str]) -> list[dict]:
+    """Simple diff: match by position and compare. Returns list of {original, tailored} pairs."""
+    pairs = []
+    for i in range(max(len(original_bullets), len(tailored_bullets))):
+        orig = original_bullets[i] if i < len(original_bullets) else ""
+        tail = tailored_bullets[i] if i < len(tailored_bullets) else ""
+        if orig != tail:
+            pairs.append({"original": orig, "tailored": tail})
+    return pairs
+
+
+def build_keyword_matrix(
+    original_data: dict,
+    tailored_sections: dict,
+    jd_analysis: JDAnalysis,
+) -> list[dict]:
+    """Deterministic keyword mapping matrix.
+
+    For each JD keyword that appears in the tailored output, find where it landed
+    by diffing original vs. tailored bullets and checking keyword presence.
+    """
+    matrix = []
+    keywords = jd_analysis.ats_keywords[:15]
+    if not keywords:
+        return matrix
+
+    # Gather original and tailored bullets from experience and projects
+    orig_exp = original_data.get("experience", {}).get("experience", [])
+    tail_exp = tailored_sections.get("experience", {}).get("experience", [])
+
+    for i in range(min(len(orig_exp), len(tail_exp))):
+        orig_bullets = orig_exp[i].get("details", [])
+        tail_bullets = tail_exp[i].get("details", [])
+        diffs = _diff_bullets(orig_bullets, tail_bullets)
+
+        for diff in diffs:
+            orig_text = diff["original"]
+            tail_text = diff["tailored"]
+            for kw in keywords:
+                kw_lower = kw.lower()
+                # Keyword appears in tailored but not original, or both but rephrased
+                if kw_lower in tail_text.lower():
+                    matrix.append({
+                        "extracted_keyword": kw,
+                        "original_phrasing": orig_text[:120] + ("..." if len(orig_text) > 120 else ""),
+                        "new_position": tail_text[:120] + ("..." if len(tail_text) > 120 else ""),
+                        "context": f"{orig_exp[i].get('role', '')} at {orig_exp[i].get('company', '')}",
+                    })
+                    break  # One entry per diff pair per company
+
+    # Also check projects
+    orig_proj = original_data.get("projects", {}).get("projects", [])
+    tail_proj = tailored_sections.get("projects", {}).get("projects", [])
+
+    for i in range(min(len(orig_proj), len(tail_proj))):
+        orig_desc = orig_proj[i].get("description", "")
+        tail_desc = tail_proj[i].get("description", "")
+        if orig_desc != tail_desc:
+            for kw in keywords:
+                if kw.lower() in tail_desc.lower():
+                    matrix.append({
+                        "extracted_keyword": kw,
+                        "original_phrasing": orig_desc[:120] + ("..." if len(orig_desc) > 120 else ""),
+                        "new_position": tail_desc[:120] + ("..." if len(tail_desc) > 120 else ""),
+                        "context": orig_proj[i].get("title", ""),
+                    })
+                    break
+
+    # Deduplicate by (keyword, position)
+    seen = set()
+    unique = []
+    for m in matrix:
+        key = (m["extracted_keyword"], m["new_position"][:80])
+        if key not in seen:
+            seen.add(key)
+            unique.append(m)
+
+    return unique
+
+
 def validate_and_assemble(
     original_data: dict,
     profile: TailoredProfile,
     experience: ExperienceList,
     projects: ProjectList,
     jd_text: str,
+    keyword_matrix: Optional[list[dict]] = None,
 ) -> dict:
     tailored = {
         "profile": profile.model_dump(),
@@ -589,13 +709,17 @@ def validate_and_assemble(
         scores = run_all_metrics(original_data, tailored, jd_text)
         tailored["eval_scores"] = scores
 
+    # Add keyword mapping to final output
+    if keyword_matrix:
+        tailored["keyword_mapping"] = keyword_matrix
+
     return tailored
 
 
 # ---------------------------------------------------------------------------
 # Pipeline orchestrator
 # ---------------------------------------------------------------------------
-async def run_pipeline(client, model: str, jd_text: str, resume_data: dict):
+async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone: str = "professional"):
     try:
         yield sse_event(
             {
@@ -669,9 +793,24 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict):
             }
         )
         profile, experience, projects = await tailor_all_sections(
-            client, resume_data, jd_analysis, model
+            client, resume_data, jd_analysis, model, tone
         )
         yield sse_event({"stage": 3, "status": "complete"})
+
+        # Stage 3.5: Keyword Mapping Matrix
+        yield sse_event(
+            {
+                "stage": 3.5,
+                "status": "in_progress",
+                "message": "Building keyword mapping matrix...",
+            }
+        )
+        keyword_matrix = build_keyword_matrix(
+            resume_data,
+            {"profile": profile.model_dump(), "experience": experience.model_dump(), "projects": projects.model_dump()},
+            jd_analysis,
+        )
+        yield sse_event({"stage": 3.5, "status": "complete"})
 
         yield sse_event(
             {
@@ -681,7 +820,7 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict):
             }
         )
         final = validate_and_assemble(
-            resume_data, profile, experience, projects, jd_text
+            resume_data, profile, experience, projects, jd_text, keyword_matrix
         )
 
         final["relevance"] = match_report.relevance_score
@@ -803,6 +942,7 @@ async def run_cover_letter_pipeline(
     jd_text: str,
     resume_data: dict,
     prior_letter: Optional[str] = None,
+    tone: str = "professional",
 ):
     try:
         yield sse_event(
@@ -863,6 +1003,7 @@ async def run_cover_letter_pipeline(
                     "company": jd_analysis.company_name or "",
                     "relevance": match_report.relevance_score,
                     "candidate_name": resume_data.get("profile", {}).get("name", ""),
+                    "tone": tone,
                 },
             }
         )

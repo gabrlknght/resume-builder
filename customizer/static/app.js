@@ -997,6 +997,7 @@ async function tailorResume() {
 
     const provider = document.getElementById("ai-provider").value;
     const model = document.getElementById("ai-model").value;
+    const tone = document.getElementById("ai-tone").value || "professional";
     let baseUrl = document.getElementById("ai-base-url").value;
     const apiKey = document.getElementById("ai-api-key").value;
 
@@ -1021,6 +1022,7 @@ async function tailorResume() {
 
         const payload = {
             jd: jd,
+            tone: tone,
             config: {
                 provider: provider,
                 model: model,
@@ -1297,6 +1299,7 @@ async function generateCoverLetter() {
     }
 
     const priorLetter = (document.getElementById("cl-prior").value || "").trim();
+    const tone = document.getElementById("cl-tone").value || "professional";
     const provider = document.getElementById("cl-provider").value;
     const model = document.getElementById("cl-model").value;
     let baseUrl = document.getElementById("cl-base-url").value;
@@ -1321,6 +1324,7 @@ async function generateCoverLetter() {
     try {
         const payload = {
             jd,
+            tone: tone,
             prior_letter: priorLetter || "",
             config: { provider, model, base_url: baseUrl, api_key: apiKey },
             data: collectPayload(),

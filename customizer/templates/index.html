@@ -160,6 +160,19 @@
                     </div>
                     <div class="field-row">
                         <div class="field">
+                            <label for="ai-tone">TONE</label>
+                            <select id="ai-tone">
+                                <option value="professional" selected>Professional (Default)</option>
+                                <option value="formal">Formal / Authoritative</option>
+                                <option value="innovative">Energetic / Innovative</option>
+                                <option value="collaborative">Collaborative / Warm</option>
+                                <option value="technical">Technical / Precise</option>
+                                <option value="conversational">Conversational / Approachable</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field">
                             <label for="ai-base-url">BASE URL (OPTIONAL)</label>
                             <input type="text" id="ai-base-url" placeholder="Leave empty for provider default">
                         </div>
@@ -219,6 +232,19 @@
                             <input type="text" id="cl-model" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini"
                                 list="cl-llama-cpp-models-list" autocomplete="off">
                             <datalist id="cl-llama-cpp-models-list"></datalist>
+                        </div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="cl-tone">TONE</label>
+                            <select id="cl-tone">
+                                <option value="professional" selected>Professional (Default)</option>
+                                <option value="formal">Formal / Authoritative</option>
+                                <option value="innovative">Energetic / Innovative</option>
+                                <option value="collaborative">Collaborative / Warm</option>
+                                <option value="technical">Technical / Precise</option>
+                                <option value="conversational">Conversational / Approachable</option>
+                            </select>
                         </div>
                     </div>
                     <div class="field-row">

@@ -229,6 +229,7 @@ async def tailor(request: Request):
     model = config.get("model", "gpt-4o-mini")
     base_url = config.get("base_url", "").strip()
     api_key = config.get("api_key", "").strip()
+    tone = payload.get("tone", config.get("tone", "professional"))
 
     # Resolve API key from environment if not provided
     if not api_key:
@@ -272,7 +273,7 @@ async def tailor(request: Request):
         )
 
     return StreamingResponse(
-        run_pipeline(client, model, jd, data),
+        run_pipeline(client, model, jd, data, tone),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -307,6 +308,7 @@ async def cover_letter_endpoint(request: Request):
     model = config.get("model", "gpt-4o-mini")
     base_url = config.get("base_url", "").strip()
     api_key = config.get("api_key", "").strip()
+    tone = payload.get("tone", config.get("tone", "professional"))
 
     # Resolve API key from environment if not provided
     if not api_key:
@@ -357,6 +359,7 @@ async def cover_letter_endpoint(request: Request):
             jd,
             data,
             prior_letter if prior_letter and prior_letter.strip() else None,
+            tone,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
