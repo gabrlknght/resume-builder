@@ -714,7 +714,7 @@ def validate_and_assemble(
         tailored["eval_scores"] = scores
 
     # Add keyword mapping to final output
-    if keyword_matrix:
+    if keyword_matrix is not None:
         tailored["keyword_mapping"] = keyword_matrix
 
     return tailored
