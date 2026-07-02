@@ -21,11 +21,14 @@ Two workflows available:
    ```bash
    bash install.sh
    ```
+   **Flags**: `--no-tex` (skip TeX), `--no-ollama` (skip Ollama), `--model NAME` (Ollama model, default `gemma4:e4b`), `--yes` (auto-accept all prompts). Run `bash install.sh --help` for the full list.
 2. **Start the server**:
    ```bash
    uv run python customizer/server.py  # or: python3 customizer/server.py
    ```
 3. Open [http://localhost:7777](http://localhost:7777).
+
+> **Frontend build:** Static assets are minified via npm. After editing `app.js` or `style.css`, rebuild: `npm run build` (or `npm run build:js` / `npm run build:css` for individual assets). The server serves `app.min.js` and `style.min.css` — hard-refresh (Ctrl+Shift+R) after rebuilding.
 
 > **Manual dependency install** (if you prefer step-by-step):
 > ```bash
@@ -38,7 +41,7 @@ Two workflows available:
 ## Features
 
 - **Local Web UI**: A minimalist Customizer UI lets you edit JSON data and preview the generated PDF in real-time.
-- **AI-Tailored Resumes (Multi-Stage Pipeline)**: Tailor your resume to any job description using a 4-stage pipeline — JD Analysis, Match & Score, Section Tailoring, and Validation. Supports OpenAI, OpenRouter, Cerebras, Gemini, NVIDIA, and **local models via Ollama** with BYOK. Streams real-time progress via SSE, shows visual diffs, relevance scoring, and evaluation metrics (alignment, content preservation, hallucination detection).
+- **AI-Tailored Resumes (Multi-Stage Pipeline)**: Tailor your resume to any job description using a 4-stage pipeline — JD Analysis, Match & Score, Section Tailoring, and Validation. Supports OpenAI, OpenRouter, Cerebras, Gemini, NVIDIA, Llama.cpp, and **local models via Ollama** with BYOK. Streams real-time progress via SSE, shows visual diffs, relevance scoring, and evaluation metrics (alignment, content preservation, hallucination detection).
 - **Cover Letter Generation**: AI-powered cover letter writer with its own dedicated history and management tab.
 - **Local LLM Support**: Run the tailoring pipeline entirely offline using [Ollama](https://ollama.com) — no API key required.
 - **Resume & Cover Letter History**: Every generated resume and cover letter is saved automatically. Restore any past version, mark entries as hired, and delete old ones from a paginated dashboard.
@@ -47,7 +50,10 @@ Two workflows available:
 - **JSON-based Source of Truth**: Manage all your data (profile, experience, education, skills, projects) in structured JSON files.
 - **LaTeX Professionalism**: Utilizes a professional LaTeX template with Jinja2 rendering for a premium look.
 - **Automated CI/CD**: GitHub Actions automatically compiles your LaTeX source into a PDF on every push to `main`.
+- **Generation Metrics**: After tailoring, the UI displays tokens consumed and elapsed time per LLM call plus a total summary — useful for comparing model cost and performance.
+- **Drag & Drop**: Drag JSON data files directly into the editor area to load them, without navigating the file tree.
 - **Evaluation Framework**: Built-in `eval-module` with Pydantic schemas, quality metrics (alignment, preservation, hallucination detection), and golden test cases for regression testing.
+- **Semantic ATS Mapping**: The JD Analysis stage extracts semantic concepts (thematic competencies beyond exact keywords), tone cues (desired writing style inferred from the JD), and a keyword traceability matrix for diff-based tailoring transparency. Uses half-step matching for fuzzy keyword overlap scoring in Stage 2.
 
 ## History
 
@@ -116,7 +122,12 @@ Open the **"Tailor with AI"** panel in the UI and select your provider. The base
 | **OpenRouter** | Yes | `openrouter/free` | Many free models available |
 | **OpenRouter (Meta)** | Yes | `meta-llama/llama-3.3-70b-instruct:free` | Free Llama 3.3 70B |
 | **Ollama (Local)** | **No** | `gemma4:e4b` | Fully offline, no key needed |
+| **Llama.cpp** | **No** | *(select model)* | Local C++ inference server at `http://localhost:8080`, no key needed |
 | **Custom** | Optional | *(enter manually)* | Any OpenAI-compatible endpoint |
+
+### Metrics
+
+The AI Tailoring endpoint (`/api/tailor`) returns generation metrics in the response body — tokens consumed and elapsed time per LLM call, plus a total summary. Displayed in the UI after tailoring completes.
 
 ### Environment Variables (Cloud Providers)
 
