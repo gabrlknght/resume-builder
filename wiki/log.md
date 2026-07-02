@@ -45,3 +45,34 @@ User moved to AMD machine, added llama.cpp as a local LLM provider alongside oll
 - Created `wiki/decisions/2026-06-29_llamacpp-provider.md` — ADR-006 documenting the decision
 - Code changes: `customizer/pipeline.py` (llamacpp provider config, `MAX_OUTPUT_TOKENS=2048`, `_local_extra_kwargs` to disable thinking), `customizer/server.py` (base_url normalization for llamacpp), `customizer/static/app.js` (model fetch from `/v1/models`, default settings), `customizer/templates/index.html` (dropdown + datalist entries)
 - Key features: reasoning chains disabled for structured output, 2048-token hard ceiling on all pipeline calls, auto model discovery from running llama.cpp server
+
+## [2026-07-02] update | Semantic ATS Mapping framework
+
+Implemented Semantic ATS Mapping — a framework for producing more natural, contextually-aware resume rewrites via semantic concept extraction, unified rewriting strategy, keyword traceability, and tone control.
+
+### Decision
+- Created `wiki/decisions/2026-07-02_semantic-ats-mapping.md` — ADR-007 documenting the framework
+
+### Pipeline changes (`customizer/pipeline.py`)
+- `JDAnalysis` model extended with `semantic_concepts: list[str]` and `tone_cues: str`
+- `STAGE1_SYSTEM` prompt upgraded to "world-class Executive Resume Writer and ATS Algorithm Expert" with semantic mapping instructions
+- Replaced 3 disjointed Stage 3 prompts with unified `STAGE3_REWRITE_STRATEGY` + `STAGE3_PROFILE_STRATEGY`
+- Added `_tailor_context()` helper for building shared context dict (tone, must_haves, semantic concepts, keywords)
+- Added `build_keyword_matrix()` — deterministic diff-based keyword traceability (Stage 3.5)
+- Added `keyword_mapping` to final output via `validate_and_assemble()`
+- Added `tone` parameter to `run_pipeline()`, `run_cover_letter_pipeline()`, and all `tailor_*()` functions
+- Updated `validate_and_assemble()` to inject `keyword_matrix` into final output
+
+### API changes (`customizer/server.py`)
+- `/api/tailor` and `/api/cover-letter` extract `tone` from payload/config (default `"professional"`)
+- Pass `tone` through to pipeline functions
+
+### Frontend changes
+- `customizer/templates/index.html` — added tone dropdown (Professional, Formal, Innovative, Collaborative, Technical, Conversational) in both tailoring and cover letter sections
+- `customizer/static/app.js` — `tailorResume()` and `generateCoverLetter()` read `#ai-tone` / `#cl-tone` and include in API payloads
+
+### Architecture impact
+- Pipeline now has 5 stages (was 4): added Stage 3.5 Keyword Mapping
+- `index.md` updated to reflect 5-stage pipeline
+- `architecture/pipeline.md` updated with semantic mapping, unified strategy, tone control, and keyword mapping details
+- `decisions/index.md` updated with ADR-007 entry
