@@ -801,7 +801,7 @@ def validate_and_assemble(
 # ---------------------------------------------------------------------------
 # Pipeline orchestrator
 # ---------------------------------------------------------------------------
-async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone: str = "professional"):
+async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone: str = "professional", provider: str = "openai"):
     tracker = MetricsTracker()
     try:
         yield sse_event(
@@ -863,6 +863,8 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
                             "overall_pass": False,
                             "recommendation": "skip",
                         },
+                        "model": model,
+                        "provider": provider,
                     },
                 }
             )
@@ -924,6 +926,8 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
             "elapsed_seconds": round(tracker.elapsed, 2),
             "total_tokens": tracker.total_tokens,
         }
+        final["model"] = model
+        final["provider"] = provider
         yield sse_event({"stage": "final", "status": "complete", "data": final})
 
     except Exception as e:
@@ -1037,6 +1041,7 @@ async def run_cover_letter_pipeline(
     resume_data: dict,
     prior_letter: Optional[str] = None,
     tone: str = "professional",
+    provider: str = "openai",
 ):
     tracker = MetricsTracker()
     try:
@@ -1103,6 +1108,8 @@ async def run_cover_letter_pipeline(
                         "elapsed_seconds": round(tracker.elapsed, 2),
                         "total_tokens": tracker.total_tokens,
                     },
+                    "model": model,
+                    "provider": provider,
                 },
             }
         )

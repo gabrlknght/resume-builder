@@ -53,6 +53,29 @@ templates = Jinja2Templates(directory=CUSTOMIZER_DIR / "templates")
 
 
 # ---------------------------------------------------------------------------
+# Serve models.ini to the frontend
+# ---------------------------------------------------------------------------
+def _parse_models_ini(path: Path) -> list[str]:
+    """Parse ~/models.ini and return list of section aliases."""
+    import configparser
+    cfg = configparser.ConfigParser()
+    cfg.read(path)
+    return [s for s in cfg.sections()]
+
+
+@app.get("/api/llama-cpp-models")
+def get_llama_cpp_models():
+    """Return available llama.cpp model aliases from ~/models.ini."""
+    import os
+    ini_path = Path(os.path.expanduser("~/models.ini"))
+    if ini_path.exists():
+        models = _parse_models_ini(ini_path)
+    else:
+        models = []
+    return {"models": models}
+
+
+# ---------------------------------------------------------------------------
 # Index / Main Page
 # ---------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
@@ -105,6 +128,8 @@ async def generate(request: Request):
         job_title=incoming_meta.get("job_title", ""),
         match_score=incoming_meta.get("match_score"),
         timing=incoming_meta.get("timing"),
+        model=incoming_meta.get("model", ""),
+        provider=incoming_meta.get("provider", ""),
     )
 
     # Move generated PDF to history folder
@@ -274,7 +299,7 @@ async def tailor(request: Request):
         )
 
     return StreamingResponse(
-        run_pipeline(client, model, jd, data, tone),
+        run_pipeline(client, model, jd, data, tone, provider),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -361,6 +386,7 @@ async def cover_letter_endpoint(request: Request):
             data,
             prior_letter if prior_letter and prior_letter.strip() else None,
             tone,
+            provider,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

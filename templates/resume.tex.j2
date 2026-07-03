@@ -7,6 +7,10 @@
 %------------------------
 % NOTE: This is a Jinja2 template. Run scripts/render_resume.py to generate resume.tex
 
+(( set resume = profile.resume | default({}, true) ))
+(( set website = resume.website | default('') if resume else '' ))
+(( set phone = resume.phone | default('') if resume else '' ))
+
 \documentclass[letterpaper,10pt]{article}
 
 
@@ -96,8 +100,8 @@
 %----------HEADING----------
 %----------HEADING-----------------
 \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
-  \textbf{\href{((= profile.resume.website =))}{\Large ((= profile.name =))}} & Email : \href{mailto:((= contact.email =))}{((= contact.email =))}\\
-  \href{((= profile.resume.website =))}{((= profile.resume.website =))} & Mobile : ((= profile.resume.phone =)) \\
+  \textbf{\href{((= website =))}{\Large ((= profile.name =))}} & Email : \href{mailto:((= contact.email =))}{((= contact.email =))}\\
+  \href{((= website =))}{((= website =))} & Mobile : ((= phone =)) \\ 
   \href{((= profile.socials.linkedin =))}{LinkedIn: ((= profile.socials.linkedin | linkedin_username =))} & \href{((= profile.socials.github =))}{GitHub: ((= profile.socials.github | github_username =))} \\
 \end{tabular*}
 
@@ -142,7 +146,7 @@
 (( endfor ))
   \resumeSubHeadingListEnd
   \vspace{-6pt}
-  \small{\textit{For more projects, visit: \href{((= profile.resume.website + "\#projects" =))}{((= profile.resume.website =))}}}
+  \small{\textit{For more projects, visit: \href{((= website + '#projects' =))}{((= website =))}}}
   \vspace{-4pt}
 
 %-----------SKILLS-----------

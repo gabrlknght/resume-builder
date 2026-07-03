@@ -158,13 +158,10 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
         if (datalist) datalist.innerHTML = "";
 
         if (provider === "llamacpp") {
-            const cppBase = (baseUrlInput.value || "http://localhost:8080").replace(/\/+$/, "");
-            const modelsUrl = cppBase.endsWith("/v1") ? `${cppBase}/models` : `${cppBase}/v1/models`;
-            modelInput.placeholder = "Fetching models…";
-            fetch(modelsUrl)
+            fetch("/api/llama-cpp-models")
                 .then((r) => r.ok ? r.json() : Promise.reject(r.status))
                 .then((data) => {
-                    const models = (data.data || []).map((m) => m.id).filter(Boolean);
+                    const models = (data.models || []).filter(Boolean);
                     if (datalist) {
                         datalist.innerHTML = models
                             .map((m) => `<option value="${esc(m)}">`)
@@ -173,10 +170,10 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
                     if (models.length > 0 && !modelInput.value) {
                         modelInput.value = models[0];
                     }
-                    modelInput.placeholder = models.length ? "Select or type a model" : "No models found — is llama.cpp running?";
+                    modelInput.placeholder = models.length ? "Select or type a model" : "No models.ini found";
                 })
                 .catch(() => {
-                    modelInput.placeholder = "Could not reach llama.cpp at " + cppBase;
+                    modelInput.placeholder = "Could not load models.ini";
                 });
         } else if (provider === "ollama") {
             const ollamaBase = (baseUrlInput.value || "http://localhost:11434").replace(/\/+$/, "");
@@ -1099,6 +1096,8 @@ async function tailorResume() {
                             job_title: event.data.jd_analysis.job_title || "",
                             match_score: event.data.relevance || null,
                             timing: event.data.timing || null,
+                            model: event.data.model || "",
+                            provider: event.data.provider || "",
                         };
                         console.log("[lastTailoringMeta]", lastTailoringMeta);
                     }
@@ -1418,7 +1417,7 @@ async function generateCoverLetter() {
 // History Dashboard
 // ---------------------------------------------------------------------------
 let historyPage = 1;
-let lastTailoringMeta = null; // {company, job_title, match_score, timing} from last AI run
+let lastTailoringMeta = null; // {company, job_title, match_score, timing, model, provider} from last AI run
 
 // ---------------------------------------------------------------------------
 // Cover Letter History
@@ -1481,6 +1480,12 @@ function renderClHistoryTable(data) {
         const pdfLink = `<button type="button" class="btn-secondary btn-small" onclick="printClHistoryEntry('${esc(entry.id)}')" title="Open print/PDF dialog">PDF</button>`;
         const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
 
+        const modelInfo = entry.model && entry.provider
+            ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
+            : entry.model
+                ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
+                : "—";
+
         return `<tr>
             <td style="white-space:nowrap;">
                 <div style="line-height:1.05;">
@@ -1492,6 +1497,7 @@ function renderClHistoryTable(data) {
             <td>${esc(entry.job_title || "—")}</td>
             <td>${scoreHtml}</td>
             <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:pre-line;">${metricsHtml}</td>
+            <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:nowrap; line-height:1.2;">${modelInfo}</td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">${txtLink}</td>
             <td style="white-space:nowrap;">
@@ -1520,6 +1526,7 @@ function renderClHistoryTable(data) {
                         <th>JOB TITLE</th>
                         <th>SCORE</th>
                         <th>METRICS</th>
+                        <th>MODEL</th>
                         <th>PDF</th>
                         <th>FILE</th>
                         <th>ACTIONS</th>
@@ -1620,6 +1627,12 @@ function renderHistoryTable(data) {
             ? `<a href="/api/history/file/${entry.id}/${entry.pdf_filename}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
             : "—";
 
+        const modelInfo = entry.model && entry.provider
+            ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
+            : entry.model
+                ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
+                : "—";
+
         return `<tr>
             <td style="white-space:nowrap;">
                 <div style="line-height:1.05;">
@@ -1631,6 +1644,7 @@ function renderHistoryTable(data) {
             <td>${esc(entry.job_title || "—")}</td>
             <td>${scoreHtml}</td>
             <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:pre-line;">${metricsHtml}</td>
+            <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:nowrap; line-height:1.2;">${modelInfo}</td>
             <td><span class="${hiredClass}" onclick="toggleHired('${esc(entry.id)}', ${entry.hired}, this)" title="Click to toggle">${hiredLabel}</span></td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">
@@ -1659,6 +1673,7 @@ function renderHistoryTable(data) {
                         <th>JOB TITLE</th>
                         <th>SCORE</th>
                         <th>METRICS</th>
+                        <th>MODEL</th>
                         <th>HIRED</th>
                         <th>PDF</th>
                         <th>ACTIONS</th>

@@ -44,6 +44,8 @@ def save_resume_history(
     job_title: str = "",
     match_score: Optional[float] = None,
     timing: Optional[dict] = None,
+    model: str = "",
+    provider: str = "",
 ) -> tuple[str, Path]:
     """Save resume to history with metadata. Returns (entry_id, pdf_path)."""
     safe_name = safe_filename(profile_name)
@@ -68,6 +70,10 @@ def save_resume_history(
     }
     if timing is not None:
         meta["timing"] = timing
+    if model:
+        meta["model"] = model
+    if provider:
+        meta["provider"] = provider
     save_json(hist_folder / "_meta.json", meta)
 
     return entry_id, hist_folder / meta["pdf_filename"]
