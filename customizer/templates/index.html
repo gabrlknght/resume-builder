@@ -25,6 +25,13 @@
     <header class="header">
         <h1>RESUME CUSTOMIZER</h1>
         <div class="header-actions">
+            <span id="last-saved-indicator" class="last-saved-indicator" title="Last auto-save time"></span>
+            <span id="unsaved-changes-warning" class="unsaved-changes-warning" title="You have unsaved changes">&#9888; UNFINISHED</span>
+            <div class="header-actions-group">
+                <button type="button" class="btn-secondary" id="btn-settings" title="Save Settings">&#9881;</button>
+                <span class="action-separator"></span>
+                <button type="button" class="btn-secondary" id="save-mode-indicator" title="Change save mode">&#128190; MANUAL</button>
+            </div>
             <button type="button" class="btn-secondary" id="btn-save" onclick="saveToBackend()">SAVE TO BACKEND</button>
             <button type="button" id="btn-generate" onclick="generatePDF()">GENERATE</button>
         </div>
@@ -323,10 +330,58 @@
         </aside>
     </div>
 
+    <!-- Save Settings Modal -->
+    <div class="settings-modal" id="settings-modal">
+        <div class="settings-panel">
+            <div class="settings-title">SAVE MODE</div>
+            <div class="settings-options">
+                <label class="settings-option">
+                    <input type="radio" name="saveMode" value="auto" checked>
+                    <div class="option-label">
+                        <span class="option-title">AUTO-SAVE</span>
+                        <span class="option-desc">Saves 2s after you stop typing. No button needed.</span>
+                    </div>
+                    <span class="option-indicator">&#8594;</span>
+                </label>
+                <label class="settings-option">
+                    <input type="radio" name="saveMode" value="manual">
+                    <div class="option-label">
+                        <span class="option-title">MANUAL ONLY</span>
+                        <span class="option-desc">You click SAVE TO BACKEND to persist changes.</span>
+                    </div>
+                    <span class="option-indicator">&#8594;</span>
+                </label>
+            </div>
+            <div class="settings-footer">
+                <button type="button" class="btn-secondary btn-small" onclick="hideSettingsModal()">Cancel</button>
+                <button type="button" class="btn-small" onclick="applySettings()">APPLY</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top notification bar for auto-save confirmations -->
+    <div class="top-notification" id="top-notification"></div>
+
     <div class="toast" id="toast"></div>
 
     <script>
         window.__DATA__ = {{ data_json | safe }};
+    </script>
+    <script>
+        document.getElementById('btn-settings').addEventListener('click', function() {
+            const modal = document.getElementById('settings-modal');
+            modal.style.display = 'flex';
+        });
+        document.getElementById('settings-modal').addEventListener('click', function(e) {
+            if (e.target === this) hideSettingsModal();
+        });
+        document.getElementById('save-mode-indicator').addEventListener('click', function() {
+            const modal = document.getElementById('settings-modal');
+            modal.style.display = 'flex';
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') hideSettingsModal();
+        });
     </script>
     <script src="/static/{{ 'app.min.js' if use_minified else 'app.js' }}"></script>
 

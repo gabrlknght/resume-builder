@@ -25,9 +25,103 @@ let currentPage = 1;
 let totalPages = 0;
 
 // ---------------------------------------------------------------------------
+// Save Settings Modal
+// ---------------------------------------------------------------------------
+function showSettingsModal() {
+    document.getElementById('settings-modal').style.display = 'flex';
+}
+
+function hideSettingsModal() {
+    document.getElementById('settings-modal').style.display = 'none';
+}
+
+function applySettings() {
+    const mode = document.querySelector('input[name="saveMode"]:checked').value;
+    localStorage.setItem('resume-save-mode', mode);
+    hideSettingsModal();
+    updateSaveIndicator(mode);
+    updateUnsavedChangesWarning();
+    toast('SETTINGS SAVED (' + mode.toUpperCase() + ')');
+}
+
+function loadSettings() {
+    const saved = localStorage.getItem('resume-save-mode');
+    const mode = saved || 'auto';
+    const radios = document.querySelectorAll('input[name="saveMode"]');
+    radios.forEach(function(r) { r.checked = r.value === mode; });
+    updateSaveIndicator(mode);
+    updateUnsavedChangesWarning();
+}
+
+function updateSaveIndicator(mode) {
+    const el = document.getElementById('save-mode-indicator');
+    if (el) {
+        var icon = mode === 'auto' ? '\u2699\uFE0F' : '\uD83D\uDDB1';
+        el.textContent = icon + ' ' + mode.toUpperCase();
+        el.title = mode === 'auto' ? 'Auto-save enabled (2s after typing stops). Click to change.' : 'Manual save only. Click to change.';
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Debounced auto-save timer
+// ---------------------------------------------------------------------------
+var _saveTimer = null;
+var _hasUnsavedChanges = false;
+
+function scheduleAutoSave() {
+    _hasUnsavedChanges = true;
+    updateUnsavedChangesWarning();
+    if (localStorage.getItem('resume-save-mode') !== 'auto') return;
+    clearAutoSaveTimer();
+    _saveTimer = setTimeout(function() {
+        saveToBackend(true);
+    }, 2000);
+}
+
+function clearAutoSaveTimer() {
+    if (_saveTimer !== null) {
+        clearTimeout(_saveTimer);
+        _saveTimer = null;
+    }
+}
+
+function updateUnsavedChangesWarning() {
+    var el = document.getElementById('unsaved-changes-warning');
+    if (!el) return;
+    var mode = localStorage.getItem('resume-save-mode');
+    if (mode === 'manual' && _hasUnsavedChanges) {
+        el.style.display = 'inline-block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function showTopNotification(message) {
+    var el = document.getElementById('top-notification');
+    if (!el) return;
+    el.textContent = message;
+    el.className = 'top-notification visible';
+    setTimeout(function() {
+        el.className = 'top-notification';
+    }, 2500);
+}
+
+function updateLastSavedIndicator() {
+    var el = document.getElementById('last-saved-indicator');
+    if (!el) return;
+    var now = new Date();
+    var hours = String(now.getHours()).padStart(2, '0');
+    var mins = String(now.getMinutes()).padStart(2, '0');
+    var secs = String(now.getSeconds()).padStart(2, '0');
+    el.textContent = 'SAVED ' + hours + ':' + mins + ':' + secs;
+    el.style.display = 'inline-block';
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
+    loadSettings();
     populateScalarFields();
     renderEducation();
     renderExperience();
@@ -213,6 +307,7 @@ function populateScalarFields() {
         }
         el.addEventListener("input", () => {
             setNestedValue(state, el.dataset.path, el.value);
+            scheduleAutoSave();
         });
     });
 }
@@ -272,14 +367,18 @@ function createEducationEntry(entry, index) {
             <input type="text" value="${esc(entry.duration || "")}" data-edu="${index}" data-key="duration">
         </div>
     `;
-    div.querySelectorAll("input").forEach((inp) => {
-        inp.addEventListener("input", () => {
-            const idx = parseInt(inp.dataset.edu);
-            state.education.education[idx][inp.dataset.key] = inp.value;
-        });
-    });
     return div;
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('education-list').addEventListener('input', function(e) {
+        if (e.target.hasAttribute('data-edu')) {
+            const idx = parseInt(e.target.dataset.edu);
+            state.education.education[idx][e.target.dataset.key] = e.target.value;
+            scheduleAutoSave();
+        }
+    });
+});
 
 function addEducation() {
     if (!state.education) state.education = { education: [] };
@@ -358,25 +457,24 @@ function createExperienceEntry(entry, index) {
         </div>
     `;
 
-    div.querySelectorAll("[data-exp-field]").forEach((inp) => {
-        inp.addEventListener("input", () => {
-            const idx = parseInt(inp.dataset.expField);
-            const key = inp.dataset.key;
-            const val = inp.value;
-            state.experience.experience[idx][key] = val === "" && key === "endDate" ? null : val;
-        });
-    });
-
-    div.querySelectorAll("[data-detail]").forEach((ta) => {
-        ta.addEventListener("input", () => {
-            const ei = parseInt(ta.dataset.exp);
-            const di = parseInt(ta.dataset.detail);
-            state.experience.experience[ei].details[di] = ta.value;
-        });
-    });
-
     return div;
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('experience-list').addEventListener('input', function(e) {
+        var target = e.target;
+        if (!isNaN(parseInt(target.dataset.expField))) {
+            const idx = parseInt(target.dataset.expField);
+            state.experience.experience[idx][target.dataset.key] = target.value === "" && target.dataset.key === "endDate" ? null : target.value;
+            scheduleAutoSave();
+        } else if (!isNaN(parseInt(target.dataset.exp))) {
+            const idx = parseInt(target.dataset.exp);
+            const di = parseInt(target.dataset.detail);
+            state.experience.experience[idx].details[di] = target.value;
+            scheduleAutoSave();
+        }
+    });
+});
 
 function addExperience() {
     if (!state.experience) state.experience = { experience: [] };
@@ -502,13 +600,6 @@ function createProjectEntry(entry, index) {
         </div>
     `;
 
-    div.querySelectorAll("[data-proj-field]").forEach((el) => {
-        el.addEventListener("input", () => {
-            const idx = parseInt(el.dataset.projField);
-            state.projects.projects[idx][el.dataset.key] = el.value;
-        });
-    });
-
     const techInput = div.querySelector(`#tech-input-${index}`);
     if (techInput) {
         techInput.addEventListener("keydown", (e) => {
@@ -523,6 +614,17 @@ function createProjectEntry(entry, index) {
 
     return div;
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('projects-list').addEventListener('input', function(e) {
+        const target = e.target;
+        if (!isNaN(parseInt(target.dataset.projField))) {
+            const idx = parseInt(target.dataset.projField);
+            state.projects.projects[idx][target.dataset.key] = target.value;
+            scheduleAutoSave();
+        }
+    });
+});
 
 function addProject() {
     if (!state.projects) state.projects = { projects: [] };
@@ -599,10 +701,6 @@ function createSkillCategoryEntry(entry, index) {
         </div>
     `;
 
-    div.querySelector(`[data-skill-cat="${index}"]`).addEventListener("input", (e) => {
-        state.skills.skills[index].category = e.target.value;
-    });
-
     const skillInput = div.querySelector(`#skill-input-${index}`);
     if (skillInput) {
         skillInput.addEventListener("keydown", (e) => {
@@ -617,6 +715,16 @@ function createSkillCategoryEntry(entry, index) {
 
     return div;
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('skills-list').addEventListener('input', function(e) {
+        if (!isNaN(parseInt(e.target.dataset.skillCat))) {
+            const idx = parseInt(e.target.dataset.skillCat);
+            state.skills.skills[idx].category = e.target.value;
+            scheduleAutoSave();
+        }
+    });
+});
 
 function addSkillCategory() {
     if (!state.skills) state.skills = { skills: [] };
@@ -795,10 +903,13 @@ function downloadPDF() {
 // ---------------------------------------------------------------------------
 // API: Save to Backend
 // ---------------------------------------------------------------------------
-async function saveToBackend() {
-    const btn = document.getElementById("btn-save");
-    btn.classList.add("loading");
-    btn.textContent = "SAVING…";
+async function saveToBackend(isAutoSave) {
+    isAutoSave = isAutoSave || false;
+    var btn = document.getElementById("btn-save");
+    if (!isAutoSave) {
+        btn.classList.add("loading");
+        btn.textContent = "SAVING…";
+    }
 
     try {
         const res = await fetch("/api/save", {
@@ -812,12 +923,26 @@ async function saveToBackend() {
             throw new Error(err.error || "Save failed");
         }
 
-        toast("SAVED TO BACKEND");
+        _hasUnsavedChanges = false;
+        updateUnsavedChangesWarning();
+        updateLastSavedIndicator();
+
+        if (isAutoSave && localStorage.getItem('resume-save-mode') === 'auto') {
+            showTopNotification("AUTO-SAVED");
+        } else if (!isAutoSave) {
+            toast("SAVED TO BACKEND");
+        }
     } catch (e) {
-        toast(e.message, true);
+        if (isAutoSave) {
+            showTopNotification("AUTO-SAVE FAILED");
+        } else {
+            toast(e.message, true);
+        }
     } finally {
-        btn.classList.remove("loading");
-        btn.textContent = "SAVE TO BACKEND";
+        if (!isAutoSave) {
+            btn.classList.remove("loading");
+            btn.textContent = "SAVE TO BACKEND";
+        }
     }
 }
 

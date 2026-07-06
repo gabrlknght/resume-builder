@@ -60,7 +60,42 @@ body {
 
 .header-actions {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+}
+
+.header-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+.action-separator {
+    display: block;
+    width: 14px;
+    height: 1px;
+    background: var(--fg);
+    align-self: center;
+}
+
+.last-saved-indicator {
+    font-size: 10px;
+    color: var(--muted);
+    margin-right: 0.25rem;
+    display: none;
+}
+
+.unsaved-changes-warning {
+    font-size: 10px;
+    color: #e67e22;
+    margin-right: 0.25rem;
+    display: none;
+    animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
 }
 
 /* ---- Buttons (skill spec) ---- */
@@ -735,4 +770,124 @@ button.loading {
 
 .array-entry.drag-over {
     border-top: 2px solid var(--fg);
+}
+
+/* ---- Top notification bar ---- */
+.top-notification {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 11px;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 0.4rem 0.75rem;
+    font-weight: 700;
+    z-index: 150;
+    opacity: 0;
+    transform: translateY(-100%);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+}
+
+.top-notification.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ---- Save Settings Modal ---- */
+.settings-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-panel {
+    background: var(--bg);
+    border: 1px solid var(--fg);
+    padding: 2rem;
+    max-width: 480px;
+    width: 90%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.settings-title {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-align: center;
+    letter-spacing: 0.1em;
+}
+
+.settings-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.settings-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.settings-option:hover {
+    background: #111;
+}
+
+.settings-option:has(input:checked) {
+    border-color: var(--fg);
+    background: #0a0a0a;
+}
+
+.settings-option input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--fg);
+    flex-shrink: 0;
+}
+
+.option-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+}
+
+.option-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.option-desc {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.option-indicator {
+    color: var(--muted);
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.settings-footer {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
 }
