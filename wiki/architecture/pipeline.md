@@ -48,9 +48,9 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 - Locations
 - URLs (liveUrl, socials, etc.)
 
-**Parallel tailoring** — Stage 3 runs three LLM calls concurrently (`asyncio.gather`) for profile, experience, and projects. All three calls share the same rewriting strategy template with injected context (tone, semantic concepts, must-have keywords). Reduces latency vs. sequential calls. Note: local providers (llama.cpp/Ollama) typically run a single inference slot, so these "concurrent" calls actually queue server-side — see [[../decisions/2026-07-02_generation-metrics-tracking]] for the resulting timeout fix.
+**Parallel tailoring** — Stage 3 runs three LLM calls concurrently (`asyncio.gather`) for profile, experience, and projects. All three calls share the same rewriting strategy template with injected context (tone, semantic concepts, must-have keywords). Reduces latency vs. sequential calls. Note: local providers (llama.cpp/Ollama) typically run a single inference slot, so these "concurrent" calls actually queue server-side — see [[../../decisions]] for the resulting timeout fix.
 
-**Generation metrics** — (Added 2026-07-02) A `MetricsTracker` wraps every LLM call across both the tailoring and cover-letter pipelines, summing completion tokens and wall-clock elapsed time. Attached to the final SSE event as `data.timing` (`{elapsed_seconds, total_tokens}`), persisted to history `_meta.json`, and surfaced in history tables, preview panes, and the Stats tab chart. See [[../decisions/2026-07-02_generation-metrics-tracking]].
+**Generation metrics** — (Added 2026-07-02) A `MetricsTracker` wraps every LLM call across both the tailoring and cover-letter pipelines, summing completion tokens and wall-clock elapsed time. Attached to the final SSE event as `data.timing` (`{elapsed_seconds, total_tokens}`), persisted to history `_meta.json`, and surfaced in history tables, preview panes, and the Stats tab chart. See [[../../decisions]].
 
 **Eval metrics** — Stage 4 computes:
 - `job_alignment_score` — how well tailored output matches JD keywords

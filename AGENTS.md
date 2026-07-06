@@ -25,7 +25,7 @@ Key entry points:
 - **JSON Data Structure**: The `data/*.json` schema (profile, experience, education, projects, skills, contact) cleanly separates content from presentation.
 - **LaTeX Templates**: `templates/resume.tex.j2` uses Jinja2 templating to inject JSON data into a professional LaTeX document.
 - **Build Scripts**: `scripts/render_resume.py` parses templates, loads data, and generates `.tex` output.
-- **Tailoring Pipeline**: `customizer/pipeline.py` implements the 4-stage AI tailoring pipeline using `instructor` for structured LLM output.
+- **Tailoring Pipeline**: `customizer/pipeline.py` implements the 5-stage AI tailoring pipeline (JD Analysis, Match & Score, Section Tailoring, Keyword Mapping, Validation) using `instructor` for structured LLM output.
 
 ## Local Web UI (customizer/)
 
@@ -34,8 +34,8 @@ The built-in web interface for power users who want local control:
 - **Stack**: FastAPI + Uvicorn (backend), Jinja2 (templating), Vanilla JavaScript (frontend).
 - **Design System**: Minimalist black-and-white with JetBrains Mono font (brutalist, developer-centric).
 - **PDF Preview**: Real-time preview via Mozilla's `pdf.js` embedded in browser.
-- **Data Persistence**: Reads from/writes to `data/*.json` files via "Save to Backend" button.
-- **Real-Time AI Progress**: Tailoring streams stage-by-stage progress via SSE (Server-Sent Events) — JD Analysis, Match & Score, Section Tailoring, Validation.
+- **Data Persistence**: Reads from/writes to `data/*.json` files via "Save to Backend" button or debounced auto-save (2s after typing stops). Save mode (auto/manual) selected in settings modal (gear icon).
+- **Real-Time AI Progress**: Tailoring streams stage-by-stage progress via SSE (Server-Sent Events) — JD Analysis, Match & Score, Section Tailoring, Keyword Mapping, Validation.
 
 ## The `tailor-resume` AI Skill
 

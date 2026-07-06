@@ -1,7 +1,7 @@
 ---
 title: Wiki Index
 type: index
-last_updated: 2026-07-02
+last_updated: 2026-07-06
 sources: [wiki/SCHEMA.md, data/profile.json, data/experience.json, data/projects.json, data/skills.json, data/education.json]
 ---
 
@@ -24,7 +24,7 @@ Read this file first when answering queries. Each entry links to a wiki page wit
 
 ## Decisions
 
-- [Decisions](decisions/index.md) — Recorded architectural and project decisions with rationale
+- [Decisions](decisions/index.md) — Recorded architectural and project decisions with rationale (ADR-001 through ADR-008)
 
 ## Applications
 

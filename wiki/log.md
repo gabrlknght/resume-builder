@@ -161,3 +161,60 @@ Improved the history tables' metrics display and widened both table containers f
 
 ### Wiki impact
 - `wiki/architecture/system.md` updated: new **History Tables** section documenting icon-based metrics display, hover titles, line wrapping, and table dimensions
+
+---
+
+## [2026-07-06] update | Auto-save settings, debounced auto-save, and save mode selector
+
+Added auto-save with debounced timer and save mode selector to the local web UI.
+
+### Decision
+- Replaced the single "SAVE TO BACKEND" button as the only persistence mechanism with an auto-save option
+- Auto-save fires 2 seconds after typing stops, giving a frictionless editing experience
+- Manual mode retained for users who want explicit control over when changes are persisted
+
+### Frontend changes (`customizer/static/app.js`)
+- Added `loadSettings()` — reads `localStorage('resume-save-mode')` (default `'auto'`), sets radio button state
+- Added `applySettings()` — writes mode to localStorage, updates save indicator and unsaved changes warning
+- Added `updateSaveIndicator()` — shows gear icon (⚙️) for auto mode, floppy disk (💾) for manual mode
+- Added `scheduleAutoSave()` — sets `_hasUnsavedChanges = true`, clears timer, schedules 2s `setTimeout` → `saveToBackend(true)`
+- Added `clearAutoSaveTimer()` — clears pending auto-save timer
+- Added `updateUnsavedChangesWarning()` — toggles pulsing orange "UNFINISHED" warning in manual mode only
+- Added `showTopNotification()` — shows fixed top bar with message, auto-hides after 2.5s
+- Added `updateLastSavedIndicator()` — shows "SAVED HH:MM:SS" after each successful save
+- Modified `saveToBackend(isAutoSave)` — accepts `isAutoSave` param; auto saves show top notification instead of toast, don't show button loading state
+- Refactored card input handlers to use delegated listeners on parent containers:
+  - Education: delegated listener on `#education-list`
+  - Experience: delegated listener on `#experience-list` (handles both field inputs and detail textareas)
+  - Projects: delegated listener on `#projects-list`
+  - Skills: delegated listener on `#skills-list`
+- Removed per-card inline `addEventListener` calls — each card creation function no longer attaches listeners (cleaner, fewer DOM operations)
+
+### CSS changes (`customizer/static/style.css`)
+- Added `.header-actions-group` — groups gear icon + save-mode indicator with no gap
+- Added `.action-separator` — 14px white horizontal connector between gear icon and save-mode button
+- Added `.last-saved-indicator` — 10px muted text, hidden until first save
+- Added `.unsaved-changes-warning` — 10px orange text, hidden by default, pulsing animation (`@keyframes pulse-warning`)
+- Added `.top-notification` — fixed top bar, slides in from above, auto-hides after class removal
+- Added `.settings-modal` — dark overlay (rgba 0,0,0,0.85), centered, z-index 200
+- Added `.settings-panel` — dark background, bordered, centered content panel
+- Added `.settings-option` — radio button + label layout, hover background, checked state highlight
+- Added `.option-label`, `.option-title`, `.option-desc`, `.option-indicator` — settings modal typography
+- Added `.settings-footer` — align buttons right
+
+### HTML changes (`customizer/templates/index.html`)
+- Added `#last-saved-indicator` span in header
+- Added `#unsaved-changes-warning` span in header (pulsing "UNFINISHED" warning)
+- Added header actions group with gear icon button (`#btn-settings`) and save-mode indicator button (`#save-mode-indicator`)
+- Added settings modal with radio buttons (auto/manual) and apply/cancel buttons
+- Added top notification bar div (`#top-notification`)
+- Added inline script for modal open/close events (gear icon click, save-mode indicator click, Escape key, click-outside)
+
+### Architecture impact
+- `architecture/system.md` updated with new **Auto-Save Architecture** section documenting save modes, key implementation details, and UI components
+- `index.md` updated last_updated timestamp
+
+### Files changed
+- `customizer/static/app.js` — auto-save logic, delegated listeners, settings modal handlers
+- `customizer/static/style.css` — auto-save UI styling (notification bar, modal, save mode indicator, warning)
+- `customizer/templates/index.html` — settings modal, header controls, notification bar

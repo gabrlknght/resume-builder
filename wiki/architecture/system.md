@@ -1,8 +1,8 @@
 ---
 title: System Architecture
 type: architecture
-last_updated: 2026-06-16
-sources: [AGENTS.md, customizer/server.py, .github/workflows/build-resume.yml]
+last_updated: 2026-07-06
+sources: [AGENTS.md, customizer/server.py, .github/workflows/build-resume.yml, customizer/static/app.js]
 ---
 
 # System Architecture
@@ -78,6 +78,13 @@ Key UI features:
 - Real-time PDF preview (pdf.js)
 - AI Tailoring: paste JD → 4-stage pipeline runs → visual diff shown
 - BYOK: choose provider + model + API key in UI
+- **Auto-save**: debounced auto-save (2s after typing stops) when auto mode is active, with top notification bar flashing "AUTO-SAVED"/"AUTO-SAVE FAILED"
+- **Save mode selector**: gear icon → settings modal to toggle between auto-save and manual-only modes, persisted in localStorage
+- **Unsaved changes warning**: pulsing "UNFINISHED" warning (orange) when unsaved changes exist in manual mode
+- **Last saved indicator**: shows "SAVED HH:MM:SS" timestamp after each save, appears only after first save
+- **Settings modal**: dark overlay with radio buttons for auto/manual save mode, accessible via gear icon or save-mode indicator button
+- **Delegated event listeners**: all card input handlers (education, experience, projects, skills) use delegated listeners on parent containers for cleaner event management
+- **Header actions group**: gear icon + save-mode indicator grouped with a white horizontal connector for visual cohesion
 
 ## History Tables
 
@@ -110,6 +117,35 @@ From `AGENTS.md`:
 - Re-read after edit to verify
 - Never fix a broken edit with another edit — report and stop
 - JSON files: always write via Python (`json.dumps`), never heredocs
+
+## Auto-Save Architecture
+
+### Save Modes
+
+- **Auto-save**: 2-second debounce timer fires `saveToBackend(true)` after typing stops. Top notification bar flashes "AUTO-SAVED" on success or "AUTO-SAVE FAILED" on error. Timer is cleared on each new keystroke.
+- **Manual**: no debounced timer. User must click "SAVE TO BACKEND". Pulsing orange "UNFINISHED" warning appears when there are unsaved changes.
+
+### Key Implementation Details
+
+- Save mode persisted in `localStorage('resume-save-mode')` (default: `'auto'`)
+- `saveToBackend(isAutoSave)` distinguishes auto vs manual saves — auto saves don't show the "SAVING…" button state, don't show the toast, and show the top notification bar instead
+- `_hasUnsavedChanges` boolean tracks manual-mode unsaved state
+- `scheduleAutoSave()` sets `_hasUnsavedChanges = true`, clears timer, and schedules a 2s `setTimeout` → `saveToBackend(true)`
+- `clearAutoSaveTimer()` clears the pending timer
+- All card input handlers (education, experience, projects, skills) call `scheduleAutoSave()` via delegated `input` event listeners on parent containers
+- Scalar field inputs use the existing per-field `scheduleAutoSave()` call
+- Settings modal: gear icon (`#btn-settings`) and save-mode indicator (`#save-mode-indicator`) both open the modal; Escape key closes it; clicking outside the panel also closes it
+- `updateSaveIndicator()` shows a gear icon (⚙️) for auto mode or a floppy disk (💾) for manual mode next to the save-mode button
+- `updateLastSavedIndicator()` shows the timestamp after each successful save
+- `updateUnsavedChangesWarning()` toggles the pulsing orange warning in manual mode only
+
+### UI Components
+
+- Top notification bar (`#top-notification`) — fixed, slides in from top, auto-hides after 2.5s
+- Settings modal (`#settings-modal`) — dark overlay, centered panel with radio buttons and apply/cancel buttons
+- Last saved indicator (`#last-saved-indicator`) — 10px muted text, hidden until first save
+- Unsaved changes warning (`#unsaved-changes-warning`) — 10px orange text with pulse animation, hidden in auto mode
+- Header actions group — gear icon + save-mode indicator grouped with a white horizontal connector (`#action-separator`)
 
 ## Related Pages
 
