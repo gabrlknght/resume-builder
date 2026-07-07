@@ -509,15 +509,16 @@ function removeDetail(expIndex, detailIndex) {
 // Drag-and-drop reordering (shared by Projects and Skills)
 // ---------------------------------------------------------------------------
 function setupDragReorder(div, index, getArray, rerenderFn) {
-    div.setAttribute('draggable', 'true');
+    const handle = div.querySelector('.drag-handle') || div;
+    handle.setAttribute('draggable', 'true');
 
-    div.addEventListener('dragstart', (e) => {
+    handle.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(index));
         setTimeout(() => div.classList.add('drag-source'), 0);
     });
 
-    div.addEventListener('dragend', () => {
+    handle.addEventListener('dragend', () => {
         div.classList.remove('drag-source');
         document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     });

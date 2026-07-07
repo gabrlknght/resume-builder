@@ -760,10 +760,6 @@ button.loading {
     cursor: grabbing;
 }
 
-.array-entry[draggable="true"] {
-    cursor: default;
-}
-
 .array-entry.drag-source {
     opacity: 0.35;
 }
