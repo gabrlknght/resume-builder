@@ -10,10 +10,10 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
     <link rel="manifest" href="/static/site.webmanifest">
-    <meta name="theme-color" content="#000000">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/{{ 'style.min.css' if use_minified else 'style.css' }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/7.0.0/diff.min.js"></script>
@@ -27,12 +27,13 @@
         <div class="header-actions">
             <span id="last-saved-indicator" class="last-saved-indicator" title="Last auto-save time"></span>
             <span id="unsaved-changes-warning" class="unsaved-changes-warning" title="You have unsaved changes">&#9888; UNFINISHED</span>
+            <button type="button" class="btn-secondary" id="btn-theme" title="Change theme">THEME</button>
             <div class="header-actions-group">
                 <button type="button" class="btn-secondary" id="btn-settings" title="Save Settings">&#9881;</button>
                 <span class="action-separator"></span>
                 <button type="button" class="btn-secondary" id="save-mode-indicator" title="Change save mode">&#128190; MANUAL</button>
             </div>
-            <button type="button" class="btn-secondary" id="btn-save" onclick="saveToBackend()">SAVE TO BACKEND</button>
+            <button type="button" class="btn-secondary" id="btn-save" onclick="saveToBackend()">SAVE</button>
             <button type="button" id="btn-generate" onclick="generatePDF()">GENERATE</button>
         </div>
     </header>
@@ -347,7 +348,7 @@
                     <input type="radio" name="saveMode" value="manual">
                     <div class="option-label">
                         <span class="option-title">MANUAL ONLY</span>
-                        <span class="option-desc">You click SAVE TO BACKEND to persist changes.</span>
+                        <span class="option-desc">You click SAVE to persist changes.</span>
                     </div>
                     <span class="option-indicator">&#8594;</span>
                 </label>
@@ -355,6 +356,128 @@
             <div class="settings-footer">
                 <button type="button" class="btn-secondary btn-small" onclick="hideSettingsModal()">Cancel</button>
                 <button type="button" class="btn-small" onclick="applySettings()">APPLY</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theme Modal -->
+    <div class="settings-modal" id="theme-modal">
+        <div class="settings-panel">
+            <div class="settings-title">THEME</div>
+            <div class="settings-options">
+                <label class="theme-option">
+                    <input type="radio" name="theme" value="default" checked>
+                    <div class="theme-preview">
+                        <div class="theme-swatch" style="background:#000"></div>
+                        <div class="theme-swatch" style="background:#fff"></div>
+                        <div class="theme-swatch" style="background:#888"></div>
+                        <div class="theme-swatch" style="background:#333"></div>
+                    </div>
+                    <div class="theme-option-label">
+                        <span class="theme-option-name">DEFAULT</span>
+                        <span class="theme-option-desc">Classic black &amp; white</span>
+                    </div>
+                    <span class="option-indicator">→</span>
+                </label>
+                <label class="theme-option">
+                    <input type="radio" name="theme" value="darkslime">
+                    <div class="theme-preview">
+                        <div class="theme-swatch" style="background:#0a0a0a"></div>
+                        <div class="theme-swatch" style="background:#00ff41"></div>
+                        <div class="theme-swatch" style="background:#00aa2a"></div>
+                        <div class="theme-swatch" style="background:#004d00"></div>
+                    </div>
+                    <div class="theme-option-label">
+                        <span class="theme-option-name">DARKSLIME</span>
+                        <span class="theme-option-desc">Terminal green on dark</span>
+                    </div>
+                    <span class="option-indicator">→</span>
+                </label>
+                <label class="theme-option">
+                    <input type="radio" name="theme" value="crimson">
+                    <div class="theme-preview">
+                        <div class="theme-swatch" style="background:#1a0a0a"></div>
+                        <div class="theme-swatch" style="background:#ff6b6b"></div>
+                        <div class="theme-swatch" style="background:#aa4444"></div>
+                        <div class="theme-swatch" style="background:#662222"></div>
+                    </div>
+                    <div class="theme-option-label">
+                        <span class="theme-option-name">CRIMSON</span>
+                        <span class="theme-option-desc">Reddish tones on dark</span>
+                    </div>
+                    <span class="option-indicator">→</span>
+                </label>
+                <label class="theme-option">
+                    <input type="radio" name="theme" value="espresso">
+                    <div class="theme-preview">
+                        <div class="theme-swatch" style="background:#1a1410"></div>
+                        <div class="theme-swatch" style="background:#d4a76a"></div>
+                        <div class="theme-swatch" style="background:#886644"></div>
+                        <div class="theme-swatch" style="background:#554433"></div>
+                    </div>
+                    <div class="theme-option-label">
+                        <span class="theme-option-name">ESPRESSO</span>
+                        <span class="theme-option-desc">Warm brown on dark</span>
+                    </div>
+                    <span class="option-indicator">→</span>
+                </label>
+                <label class="theme-option">
+                    <input type="radio" name="theme" value="smoothie">
+                    <div class="theme-preview">
+                        <div class="theme-swatch" style="background:#1a0a1a"></div>
+                        <div class="theme-swatch" style="background:#ff69b4"></div>
+                        <div class="theme-swatch" style="background:#cc4488"></div>
+                        <div class="theme-swatch" style="background:#662266"></div>
+                    </div>
+                    <div class="theme-option-label">
+                        <span class="theme-option-name">SMOOTHIE</span>
+                        <span class="theme-option-desc">Delicious pink on purple</span>
+                    </div>
+                    <span class="option-indicator">→</span>
+                </label>
+            </div>
+
+            <!-- FONT SECTION -->
+            <div class="font-section">
+                <div class="font-section-title">FONT</div>
+                <div class="settings-options">
+                    <label class="font-option">
+                        <input type="radio" name="font" value="jetbrains mono" checked>
+                        <div class="font-preview">
+                            <span class="font-preview-text">Aa Bb 01</span>
+                            <span class="font-preview-label">JetBrains Mono</span>
+                        </div>
+                        <span class="option-indicator">→</span>
+                    </label>
+                    <label class="font-option">
+                        <input type="radio" name="font" value="inter">
+                        <div class="font-preview">
+                            <span class="font-preview-text">Aa Bb 01</span>
+                            <span class="font-preview-label">Inter</span>
+                        </div>
+                        <span class="option-indicator">→</span>
+                    </label>
+                    <label class="font-option">
+                        <input type="radio" name="font" value="ibm plex mono">
+                        <div class="font-preview">
+                            <span class="font-preview-text">Aa Bb 01</span>
+                            <span class="font-preview-label">IBM Plex Mono</span>
+                        </div>
+                        <span class="option-indicator">→</span>
+                    </label>
+                    <label class="font-option">
+                        <input type="radio" name="font" value="space mono">
+                        <div class="font-preview">
+                            <span class="font-preview-text">Aa Bb 01</span>
+                            <span class="font-preview-label">Space Mono</span>
+                        </div>
+                        <span class="option-indicator">→</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-footer">
+                <button type="button" class="btn-secondary btn-small" onclick="document.getElementById('theme-modal').style.display='none'">CLOSE</button>
             </div>
         </div>
     </div>
@@ -382,6 +505,59 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') hideSettingsModal();
         });
+    </script>
+    <script>
+        // ---- Theme + Font Switcher ----
+        (function() {
+            var themes = {
+                default:  { bg:'#000000', fg:'#ffffff', muted:'#888888', border:'#333333', surface:'#111111', surfaceHover:'#0d0d0d', surfaceChecked:'#0a0a0a' },
+                darkslime:{ bg:'#0a0a0a', fg:'#00ff41', muted:'#00aa2a', border:'#004d00', surface:'#141414', surfaceHover:'#111111', surfaceChecked:'#0e0e0e' },
+                crimson:  { bg:'#1a0a0a', fg:'#ff6b6b', muted:'#aa4444', border:'#662222', surface:'#221010', surfaceHover:'#1e0c0c', surfaceChecked:'#160808' },
+                espresso:   { bg:'#1a1410', fg:'#d4a76a', muted:'#886644', border:'#554433', surface:'#221c14', surfaceHover:'#1e1810', surfaceChecked:'#161008' },
+                smoothie:   { bg:'#1a0a1a', fg:'#ff69b4', muted:'#cc4488', border:'#662266', surface:'#221422', surfaceHover:'#1e101e', surfaceChecked:'#160c16' }
+            };
+            function applyTheme(name) {
+                var t = themes[name];
+                var r = document.documentElement.style;
+                r.setProperty('--bg', t.bg);
+                r.setProperty('--fg', t.fg);
+                r.setProperty('--muted', t.muted);
+                r.setProperty('--border', t.border);
+                r.setProperty('--surface', t.surface);
+                r.setProperty('--surface-hover', t.surfaceHover);
+                r.setProperty('--surface-checked', t.surfaceChecked);
+                localStorage.setItem('theme', name);
+                document.querySelectorAll('.theme-option input').forEach(function(el){ el.checked = (el.value === name); });
+            }
+            var savedTheme = localStorage.getItem('theme') || 'default';
+            applyTheme(savedTheme);
+
+            function applyFont(name) {
+                document.documentElement.style.setProperty('--font-main', '"' + name + '"');
+                localStorage.setItem('font', name);
+                document.querySelectorAll('.font-option input').forEach(function(el){ el.checked = (el.value === name); });
+            }
+            var savedFont = localStorage.getItem('font') || 'jetbrains mono';
+            applyFont(savedFont);
+
+            document.getElementById('btn-theme').addEventListener('click', function() {
+                document.getElementById('theme-modal').style.display = 'flex';
+            });
+            document.getElementById('theme-modal').addEventListener('click', function(e) {
+                if (e.target === this) this.style.display = 'none';
+            });
+            document.querySelectorAll('.theme-option input').forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    applyTheme(this.value);
+                    document.getElementById('theme-modal').style.display = 'none';
+                });
+            });
+            document.querySelectorAll('.font-option input').forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    applyFont(this.value);
+                });
+            });
+        })();
     </script>
     <script src="/static/{{ 'app.min.js' if use_minified else 'app.js' }}"></script>
 

@@ -23,14 +23,19 @@
     --fg: #fff;
     --muted: #888;
     --border: #333;
+    --surface: #111;
+    --surface-hover: #0d0d0d;
+    --surface-checked: #0a0a0a;
+    --font-main: "JetBrains Mono";
 }
 
 html {
-    font-family: "JetBrains Mono", monospace;
+    font-family: var(--font-main), monospace;
     font-size: 13px;
     color: var(--fg);
     background: var(--bg);
     line-height: 1.5;
+    transition: background 0.2s ease, color 0.2s ease;
 }
 
 body {
@@ -267,7 +272,7 @@ button:active {
 
 .preview-tab.active {
     color: var(--fg);
-    background: #111;
+    background: var(--surface);
 }
 
 .preview-body {
@@ -278,7 +283,7 @@ button:active {
     align-items: center;
     padding: 1rem;
     gap: 0.75rem;
-    background: #111;
+    background: var(--surface);
 }
 
 .preview-body canvas {
@@ -523,7 +528,7 @@ button.loading {
 }
 
 .history-table tr:hover td {
-    background: #0d0d0d;
+    background: var(--surface-hover);
 }
 
 .history-table .hired-yes {
@@ -617,11 +622,11 @@ button.loading {
     color: var(--fg);
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--border);
-    background: #0d0d0d;
+    background: var(--surface-hover);
 }
 
 .cl-letter {
-    background: #0a0a0a;
+    background: var(--surface-checked);
     border: 1px solid var(--border);
     padding: 1rem 1.25rem;
     display: flex;
@@ -793,7 +798,7 @@ button.loading {
     transform: translateY(0);
 }
 
-/* ---- Save Settings Modal ---- */
+/* ---- Modals (settings + theme) ---- */
 .settings-modal {
     display: none;
     position: fixed;
@@ -843,12 +848,12 @@ button.loading {
 }
 
 .settings-option:hover {
-    background: #111;
+    background: var(--surface);
 }
 
 .settings-option:has(input:checked) {
     border-color: var(--fg);
-    background: #0a0a0a;
+    background: var(--surface-checked);
 }
 
 .settings-option input[type="radio"] {
@@ -886,4 +891,129 @@ button.loading {
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;
+}
+
+/* ---- Theme option cards (radio-style) ---- */
+.theme-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.theme-option:hover {
+    background: var(--surface);
+}
+
+.theme-option:has(input:checked) {
+    border-color: var(--fg);
+    background: var(--surface-checked);
+}
+
+.theme-option input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--fg);
+    flex-shrink: 0;
+}
+
+.theme-preview {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.theme-swatch {
+    width: 14px;
+    height: 14px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 2px;
+}
+
+.theme-option-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+}
+
+.theme-option-name {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.theme-option-desc {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* ---- Font section ---- */
+.font-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+}
+
+.font-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+    padding-left: 0.25rem;
+}
+
+.font-option {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+}
+
+.font-option:hover {
+    background: var(--surface);
+}
+
+.font-option:has(input:checked) {
+    border-color: var(--fg);
+    background: var(--surface-checked);
+}
+
+.font-option input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--fg);
+    flex-shrink: 0;
+}
+
+.font-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+}
+
+.font-preview-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fg);
+    letter-spacing: 0.04em;
+}
+
+.font-preview-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
