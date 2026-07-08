@@ -1,7 +1,7 @@
 ---
 title: Project Overview
 type: overview
-last_updated: 2026-07-06
+last_updated: 2026-07-07
 sources: [AGENTS.md, customizer/TAILOR_SKILL.md]
 ---
 

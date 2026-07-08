@@ -1,7 +1,7 @@
 ---
 title: System Architecture
 type: architecture
-last_updated: 2026-07-06
+last_updated: 2026-07-07
 sources: [AGENTS.md, customizer/server.py, .github/workflows/build-resume.yml, customizer/static/app.js]
 ---
 
@@ -39,7 +39,7 @@ resume-builder/
 ├── customizer/                  # Local web UI
 │   ├── server.py                # FastAPI app entry point
 │   ├── server_additions.py      # Additional routes
-│   ├── pipeline.py              # 4-stage AI tailoring pipeline
+│   ├── pipeline.py              # 5-stage AI tailoring pipeline (1–4, plus 3.5)
 │   ├── config.py                # Settings / env config
 │   ├── data_utils.py            # JSON read/write helpers
 │   ├── history_manager.py       # Tailoring history tracking
@@ -76,7 +76,7 @@ Key UI features:
 - Edit all JSON sections visually (forms auto-populated from JSON)
 - "Save to Backend" writes edits to `data/*.json`
 - Real-time PDF preview (pdf.js)
-- AI Tailoring: paste JD → 4-stage pipeline runs → visual diff shown
+- AI Tailoring: paste JD → 5-stage pipeline runs → visual diff shown
 - BYOK: choose provider + model + API key in UI
 - **Auto-save**: debounced auto-save (2s after typing stops) when auto mode is active, with top notification bar flashing "AUTO-SAVED"/"AUTO-SAVE FAILED"
 - **Save mode selector**: gear icon → settings modal to toggle between auto-save and manual-only modes, persisted in localStorage
@@ -146,6 +146,37 @@ From `AGENTS.md`:
 - Last saved indicator (`#last-saved-indicator`) — 10px muted text, hidden until first save
 - Unsaved changes warning (`#unsaved-changes-warning`) — 10px orange text with pulse animation, hidden in auto mode
 - Header actions group — gear icon + save-mode indicator grouped with a white horizontal connector (`#action-separator`)
+
+## Theme & Font Customization
+
+Users can customize the UI appearance via a theme modal (`#theme-modal`), accessible via the "THEME" button in the header.
+
+### Color Schemes (5)
+
+| Theme   | Background | Accent    | Vibe              |
+|---|---|---|---|
+| Default | `#000` / `#fff` | `#000` | Classic black & white |
+| Darkslime | `#0a0a0a` | `#00ff41` | Terminal green on dark |
+| Crimson | `#1a0000` | `#dc2626` | Deep red accent |
+| Ocean   | `#001a2e` | `#0ea5e9` | Ocean blue accent |
+| Sunset  | `#1a1000` | `#f97316` | Warm orange/peach |
+
+### Fonts (4)
+
+| Font Family | Style |
+|---|---|
+| JetBrains Mono | Monospace — default |
+| IBM Plex Mono | Monospace — clean, readable |
+| Inter | Sans-serif — modern, geometric |
+| Space Mono | Monospace — retro, wide |
+
+### Implementation
+
+- Theme/font selections persisted in `localStorage('resume-theme')` and `localStorage('resume-font')`
+- Applied via CSS custom properties (`--bg`, `--text`, `--accent`, `--secondary`, `--border`, `--font-main`, `--font-mono`)
+- Font changes load Google Fonts dynamically via `document.createElement('link')`
+- The `#000000` theme-color meta tag was removed and replaced with dynamic CSS — browser UI elements no longer match the page theme
+- ADR-009 documents this decision
 
 ## Related Pages
 

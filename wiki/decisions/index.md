@@ -1,7 +1,7 @@
 ---
 title: Decisions Log
 type: synthesis
-last_updated: 2026-07-02
+last_updated: 2026-07-07
 sources: []
 ---
 
@@ -40,7 +40,7 @@ Recorded architectural and project decisions with rationale.
 - **Date:** 2026-06-16
 - **Status:** Accepted
 - **Context:** A single LLM prompt to "tailor this resume to the JD" is cheap but produces hallucinated numbers, mutated immutable fields, and no diagnostic output.
-- **Decision:** Split tailoring into 4 stages: (1) JD Analysis, (2) Match & Score, (3) Section Tailoring, (4) Validate & Assemble.
+- **Decision:** Split tailoring into 4 stages: (1) JD Analysis, (2) Match & Score, (3) Section Tailoring, (4) Validate & Assemble. (Later: Stage 3.5 — Keyword Mapping — was added in 2026-07-02, see ADR-007.)
 - **Consequences:**
   - + Stage 2 is free (deterministic, no LLM cost)
   - + Stage 4 catches hallucinations and restores immutable fields
@@ -133,6 +133,19 @@ Function was annotated `-> str` but returned `dict`.
 
 **[P3] `Semantic-ATS-Mapping.md` broken template variable**
 `{{resume_text}}` was split across two lines as `{{resume_\ntext}}` — a copy-paste artifact.
+
+## ADR-009: Theme Fonts + Color Settings
+
+- **Date:** 2026-07-07
+- **Status:** Accepted
+- **Context:** The web UI had a single color scheme (black and white) and a single font (JetBrains Mono). Users wanted personalization — the ability to customize the look and feel without forking the codebase.
+- **Decision:** Added a theme modal with 5 color schemes (Default, Darkslime, Crimson, Ocean, Sunset) and 4 Google Fonts (JetBrains Mono, IBM Plex Mono, Inter, Space Mono). Theme and font selections are persisted in `localStorage` and applied via CSS custom properties and dynamic font loading.
+- **Consequences:**
+  - + Users can personalize the UI without forking
+  - + Theme/font choices persist across sessions via `localStorage`
+  - + CSS custom properties (`--bg`, `--text`, `--accent`, `--secondary`, `--border`, `--font-main`, `--font-mono`) make theming trivial to extend
+  - - Google Fonts loading adds external HTTP requests (4 font families × 2 weights each = 8 font files)
+  - - The `#000000` theme-color meta tag was removed and replaced with dynamic CSS — browser UI elements (tab bar, status bar) no longer match the page theme
 
 ## ADR-008: Generation Metrics Tracking (Tokens/Time)
 
