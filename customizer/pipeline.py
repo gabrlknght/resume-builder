@@ -65,8 +65,8 @@ PROVIDER_CONFIGS = {
 # Ollama model alias mapping (short names -> full Ollama model IDs)
 OLLAMA_MODEL_ALIASES = {
     "lfm2.5": "lfm2.5:latest",
-    "gemma4": "gemma4-opencode:latest",
-    "qwen3.5": "qwen3.5-opencode:latest",
+    "gemma4": "gemma4:e4b",
+    "qwen3.5": "qwen3.5:e4b",
     "gpt-oss": "gpt-oss-20b",
 }
 

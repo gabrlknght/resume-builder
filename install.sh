@@ -37,7 +37,7 @@ Options:
   --no-tex      Skip TeX Live installation
   --no-ollama   Skip Ollama installation
   --model NAME  Ollama model to pull (default: gemma4:e4b)
-                 Examples: llama3.2, lfm2.5:latest, mistral:latest
+                 Examples: llama3.2, lfm2.5:latest, mistral:latest, qwen3.5:e4b
   --yes, -y     Auto-accept all prompts (non-interactive mode)
   --help, -h    Show this help message
 
@@ -256,10 +256,12 @@ fi
 if [[ "${OLLAMA_INSTALLED:-false}" == "true" ]]; then
     header "Step 5: Pull Ollama Model"
     echo "Available recommended models:"
-    echo "  gemma4:e4b      — Default, best quality for resume tailoring (~5 GB)"
+    echo "  gemma4:e4b — Default, best quality for resume tailoring (~5 GB)"
     echo "  llama3.2        — Lightweight option (~2 GB)"
     echo "  lfm2.5:latest   — Liquid Foundation Model (~3 GB)"
     echo "  mistral:latest  — Good general purpose (~4 GB)"
+    echo "  qwen3.5:e4b — Qwen 3.5 (~5 GB)"
+    echo "  gpt-oss:20b     — Open-source GPT-style (~10 GB)"
     echo ""
     echo "Selected model: ${OLLAMA_MODEL}"
     echo "(Override with: bash install.sh --model llama3.2)"

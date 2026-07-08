@@ -40,27 +40,26 @@ Two workflows available:
 
 ## Features
 
-- **Local Web UI**: A minimalist Customizer UI lets you edit JSON data and preview the generated PDF in real-time.
-- **AI-Tailored Resumes (Multi-Stage Pipeline)**: Tailor your resume to any job description using a 4-stage pipeline — JD Analysis, Match & Score, Section Tailoring, and Validation. Supports OpenAI, OpenRouter, Cerebras, Gemini, NVIDIA, Llama.cpp, and **local models via Ollama** with BYOK. Streams real-time progress via SSE, shows visual diffs, relevance scoring, and evaluation metrics (alignment, content preservation, hallucination detection).
+- **Local Web UI**: A minimalist Customizer UI lets you edit JSON data and preview the generated PDF in real-time. Supports 5 color themes (Default, Darkslime, Crimson, Ocean, Sunset) and 4 font families (JetBrains Mono, IBM Plex Mono, Inter, Space Mono) via the **THEME** button.
+- **AI-Tailored Resumes (5-Stage Pipeline)**: Tailor your resume to any job description using a 5-stage pipeline — JD Analysis, Match & Score, Section Tailoring, Keyword Mapping, and Validation. Supports OpenAI, OpenRouter, Cerebras, Gemini, NVIDIA, Llama.cpp, and **local models via Ollama** with BYOK. Streams real-time progress via SSE, shows visual diffs, relevance scoring, and evaluation metrics (alignment, content preservation, hallucination detection).
 - **Cover Letter Generation**: AI-powered cover letter writer with its own dedicated history and management tab.
 - **Local LLM Support**: Run the tailoring pipeline entirely offline using [Ollama](https://ollama.com) — no API key required.
-- **Resume & Cover Letter History**: Every generated resume and cover letter is saved automatically. Restore any past version, mark entries as hired, and delete old ones from a paginated dashboard.
+- **Resume & Cover Letter History**: Every generated resume and cover letter is saved automatically. Restore any past version, mark entries as hired, and delete old ones from a paginated dashboard. History entries include model/provider metadata and generation metrics (tokens, throughput, elapsed time).
 - **Hiring Stats Dashboard**: Track your job application activity over time — submission counts, hired count, pending count, and hit rate, broken down by period (weekly / monthly / annual) with a bar chart.
-- **Skills Management**: Add, edit, and organize your skill categories directly in the UI — no JSON editing required.
+- **Skills Management**: Add, edit, and organize your skill categories directly in the UI — no JSON editing required. Skills and Projects support drag-to-reorder.
 - **JSON-based Source of Truth**: Manage all your data (profile, experience, education, skills, projects) in structured JSON files.
 - **LaTeX Professionalism**: Utilizes a professional LaTeX template with Jinja2 rendering for a premium look.
 - **Automated CI/CD**: GitHub Actions automatically compiles your LaTeX source into a PDF on every push to `main`.
 - **Generation Metrics**: After tailoring, the UI displays tokens consumed and elapsed time per LLM call plus a total summary — useful for comparing model cost and performance.
-- **Drag & Drop**: Drag JSON data files directly into the editor area to load them, without navigating the file tree.
-- **Evaluation Framework**: Built-in `eval-module` with Pydantic schemas, quality metrics (alignment, preservation, hallucination detection), and golden test cases for regression testing.
-- **Semantic ATS Mapping**: The JD Analysis stage extracts semantic concepts (thematic competencies beyond exact keywords), tone cues (desired writing style inferred from the JD), and a keyword traceability matrix for diff-based tailoring transparency. Uses half-step matching for fuzzy keyword overlap scoring in Stage 2.
+- **Semantic ATS Mapping**: The JD Analysis stage extracts semantic concepts (thematic competencies beyond exact keywords), tone cues (desired writing style inferred from the JD), and a keyword traceability matrix for diff-based tailoring transparency.
+- **Auto-save**: Debounced auto-save (2 seconds after typing stops) with a manual/auto mode toggle in the settings modal. Manual mode shows a pulsing "UNFINISHED" warning when changes are unsaved.
 
 ## History
 
 Every time you generate a resume or cover letter, the output is automatically saved under `data/history/` (resumes) and `data/cl-history/` (cover letters). Access both dashboards from the sidebar under the **HISTORY** section.
 
 ### Resume History
-- **Paginated table** of past submissions — company name, date, and PDF link.
+- **Paginated table** of past submissions — company name, date, model/provider, and PDF link.
 - **Restore**: Load any past resume's data back into the editor with one click (✅).
 - **Hired toggle**: Click the hired status cell on any row to flip it between hired and pending. Use this to track which applications resulted in offers.
 - **Delete**: Remove an entry and its stored files permanently.
@@ -68,6 +67,7 @@ Every time you generate a resume or cover letter, the output is automatically sa
 ### Cover Letter History
 - Same layout as resume history, with a download link for the saved `.txt` file.
 - Restore loads the cover letter back into the preview panel and switches to the Cover Letter tab automatically.
+- Each entry includes generation metrics (tokens, throughput, elapsed time) and model/provider metadata.
 
 ## Skills Management
 
@@ -76,6 +76,7 @@ The **SKILLS** tab lets you manage your `data/skills.json` directly from the UI 
 - **Add a category**: Click "Add Category" to create a new skill group (e.g. "Languages", "Frameworks").
 - **Add items**: Type into the input on any category row and press Enter or click "Add" to append individual skills.
 - **Remove items or categories**: Click the × next to any item or the delete button on a category row.
+- **Drag to reorder**: Use the drag handle (⠿) on any skill or project card to reorder items.
 - Changes are saved with the rest of your profile data when you generate a new resume.
 
 ## Hiring Stats
@@ -94,6 +95,29 @@ The **STATS** tab (under HISTORY in the sidebar) shows a visual breakdown of you
 - **Type**: All, Resumes only, or Cover Letters only.
 
 A bar chart renders the series data for the selected period and type.
+
+## Theme & Font Customization
+
+Open the **THEME** button in the header to access the theme modal. Choose from 5 color schemes and 4 font families — selections persist via `localStorage`.
+
+| Theme   | Background | Accent    | Vibe              |
+|---|---|---|---|
+| Default | Black / White | Black | Classic |
+| Darkslime | `#0a0a0a` | `#00ff41` | Terminal green |
+| Crimson | `#1a0000` | `#dc2626` | Deep red |
+| Ocean   | `#001a2e` | `#0ea5e9` | Ocean blue |
+| Sunset  | `#1a1000` | `#f97316` | Warm orange |
+
+| Font Family | Style |
+|---|---|
+| JetBrains Mono | Monospace — default |
+| IBM Plex Mono | Monospace — clean, readable |
+| Inter | Sans-serif — modern, geometric |
+| Space Mono | Monospace — retro, wide |
+
+## Auto-save
+
+By default, the UI saves changes automatically 2 seconds after typing stops (auto-save mode). Click the **gear icon** to open the settings modal and switch to manual mode if you prefer explicit control — manual mode shows a pulsing "UNFINISHED" warning when changes are unsaved.
 
 ## Server Configuration
 
@@ -155,9 +179,10 @@ Run the entire tailoring pipeline **100% offline** — no API key, no internet r
    ```
 2. **Pull a model** (the installer handles this if you choose to):
    ```bash
-   ollama pull gemma4:e4b     # Recommended — best quality
-   ollama pull llama3.2       # Lightweight fallback
-   ollama pull lfm2.5:latest  # Liquid Foundation Model
+   ollama pull gemma4:e4b               # Recommended — best quality (alias: gemma4)
+   ollama pull llama3.2                 # Lightweight fallback
+   ollama pull lfm2.5:latest            # Liquid Foundation Model
+   ollama pull qwen3.5:e4b              # Qwen 3.5 (alias: qwen3.5)
    ```
 3. **Start the Ollama daemon** (auto-starts on most systems; run manually if needed):
    ```bash
@@ -183,9 +208,23 @@ The following short-name aliases are recognized in the **Model** field:
 |---|---|---|
 | `gemma4` | `gemma4:e4b` | Default Ollama model |
 | `lfm2.5` | `lfm2.5:latest` | Liquid Foundation Model |
-| `gpt-oss` | `gpt-oss-20b` | Open-source GPT-style |
+| `qwen3.5` | `qwen3.5:e4b` | Qwen 3.5 |
+| `gpt-oss` | `gpt-oss:20b` | Open-source GPT-style |
 
 Any full Ollama model ID (e.g. `llama3.2`, `mistral:latest`) also works — just type it directly into the Model field.
+
+### Llama.cpp Model Aliases
+
+Llama.cpp uses `~/models.ini` (a `configparser`-compatible INI file) to define model aliases. The `/api/llama-cpp-models` endpoint reads this file and returns available aliases to the frontend. Example `~/models.ini`:
+
+```ini
+[gemma4]
+model = gemma4:e4b
+[llama3.2]
+model = llama3.2:latest
+```
+
+Select a model alias from the dropdown in the UI — no API key needed. The backend automatically appends `/v1` to construct the OpenAI-compatible path.
 
 ### Performance Tips
 
