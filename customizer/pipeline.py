@@ -34,10 +34,7 @@ try:
     sys.path.insert(
         0, str(Path(__file__).resolve().parent.parent / "eval-module" / "eval")
     )
-    from metrics import (
-        immutable_field_violations,
-        run_all_metrics,
-    )  # noqa: E402
+    from metrics import run_all_metrics  # noqa: E402
 
     HAS_EVAL_METRICS = True
 except Exception:
@@ -765,29 +762,24 @@ def validate_and_assemble(
         "relevance_analysis": "",
     }
 
+    # Immutable fields per CLAUDE.md — restored unconditionally, independent of
+    # the optional eval-module (a model dropping/mutating these shouldn't
+    # depend on whether that submodule happens to be installed).
+    orig_profile = original_data.get("profile", {})
+    for field in ("name", "avatar", "socials", "resume"):
+        tailored["profile"][field] = orig_profile.get(field, tailored["profile"].get(field))
+
+    orig_exp = original_data.get("experience", {}).get("experience", [])
+    for orig, tail in zip(orig_exp, tailored["experience"]["experience"]):
+        for field in ("company", "startDate", "endDate", "location"):
+            tail[field] = orig.get(field, tail.get(field))
+
+    orig_proj = original_data.get("projects", {}).get("projects", [])
+    for orig, tail in zip(orig_proj, tailored["projects"]["projects"]):
+        for field in ("title", "liveUrl"):
+            tail[field] = orig.get(field, tail.get(field))
+
     if HAS_EVAL_METRICS:
-        violations = immutable_field_violations(original_data, tailored)
-        if violations:
-            orig_profile = original_data.get("profile", {})
-            tailored["profile"] = {
-                **tailored["profile"],
-                "name": orig_profile.get("name", tailored["profile"].get("name")),
-            }
-
-            orig_exp = original_data.get("experience", {}).get("experience", [])
-            for i, (orig, tail) in enumerate(
-                zip(orig_exp, tailored["experience"]["experience"])
-            ):
-                for field in ("company", "startDate", "endDate", "location"):
-                    tail[field] = orig.get(field, tail.get(field))
-
-            orig_proj = original_data.get("projects", {}).get("projects", [])
-            for i, (orig, tail) in enumerate(
-                zip(orig_proj, tailored["projects"]["projects"])
-            ):
-                for field in ("title", "liveUrl"):
-                    tail[field] = orig.get(field, tail.get(field))
-
         scores = run_all_metrics(original_data, tailored, jd_text)
         tailored["eval_scores"] = scores
 
