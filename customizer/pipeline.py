@@ -93,7 +93,11 @@ def get_instructor_client(config: dict):
         raw_client = openai.AsyncOpenAI(
             base_url=resolved_base_url,
             api_key="ollama",
-            timeout=60.0
+            # Stage 3 fires 3 concurrent calls but Ollama defaults to a single
+            # inference slot, so requests queue behind each other — the last
+            # one needs enough headroom to wait plus generate (same reasoning
+            # as the llamacpp branch below).
+            timeout=600.0,
         )
         # Local models often emit multiple parallel tool calls which instructor's
         # TOOLS mode rejects.  JSON mode has the model return a raw JSON object
