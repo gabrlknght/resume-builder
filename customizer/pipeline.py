@@ -960,6 +960,8 @@ Rules:
 - Opening: reference the specific role AND company; lead with a compelling hook
 - If a prior cover letter is provided: preserve the candidate's authentic voice but sharpen relevance,
   fix weaknesses, and ensure all key JD requirements are addressed. List improvements in improvements_from_prior.
+- If additional facts are provided: weave in whichever are relevant to this role naturally — they are
+  candidate-supplied context (recent habits, direction of growth, etc.) not present in the resume itself.
 - sign_off should be natural e.g. "Sincerely," or "Best regards,"
 
 Output must be a complete, ready-to-send cover letter split into the structured fields.
@@ -980,6 +982,7 @@ async def generate_cover_letter(
     prior_letter: Optional[str] = None,
     tone: str = "professional",
     tracker: Optional[MetricsTracker] = None,
+    extra_facts: Optional[str] = None,
 ) -> CoverLetterOutput:
     profile = resume_data.get("profile", {})
     candidate_name = profile.get("name", "the candidate")
@@ -1000,6 +1003,13 @@ async def generate_cover_letter(
             + prior_letter.strip()
         )
 
+    extra_facts_section = ""
+    if extra_facts and extra_facts.strip():
+        extra_facts_section = (
+            "\n\nADDITIONAL FACTS FROM CANDIDATE (not on the resume — use whichever are relevant):\n"
+            + extra_facts.strip()
+        )
+
     user_msg = (
         f"Candidate: {candidate_name}, {candidate_title}\n"
         f"Summary: {candidate_bio}\n\n"
@@ -1011,6 +1021,7 @@ async def generate_cover_letter(
         f"ATS keywords: {jd_analysis.ats_keywords[:15]}\n\n"
         f"Job Description (excerpt):\n{jd_text[:2500]}"
         + prior_section
+        + extra_facts_section
     )
 
     coro = client.chat.completions.create(
@@ -1038,6 +1049,7 @@ async def run_cover_letter_pipeline(
     prior_letter: Optional[str] = None,
     tone: str = "professional",
     provider: str = "openai",
+    extra_facts: Optional[str] = None,
 ):
     tracker = MetricsTracker()
     try:
@@ -1079,7 +1091,7 @@ async def run_cover_letter_pipeline(
         )
         yield sse_event({"stage": 3, "status": "in_progress", "message": stage3_msg})
         cover_letter = await generate_cover_letter(
-            client, model, jd_text, jd_analysis, resume_data, prior_letter, tone, tracker
+            client, model, jd_text, jd_analysis, resume_data, prior_letter, tone, tracker, extra_facts
         )
         yield sse_event({"stage": 3, "status": "complete"})
 

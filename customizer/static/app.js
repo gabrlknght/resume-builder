@@ -1431,6 +1431,7 @@ async function generateCoverLetter() {
     }
 
     const priorLetter = (document.getElementById("cl-prior").value || "").trim();
+    const extraFacts = (document.getElementById("cl-extra-facts").value || "").trim();
     const tone = document.getElementById("cl-tone").value || "professional";
     const provider = document.getElementById("cl-provider").value;
     const model = document.getElementById("cl-model").value;
@@ -1458,6 +1459,7 @@ async function generateCoverLetter() {
             jd,
             tone: tone,
             prior_letter: priorLetter || "",
+            extra_facts: extraFacts || "",
             config: { provider, model, base_url: baseUrl, api_key: apiKey },
             data: collectPayload(),
         };

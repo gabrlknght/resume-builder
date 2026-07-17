@@ -322,6 +322,7 @@ async def cover_letter_endpoint(request: Request):
     payload = await request.json()
     jd = payload.get("jd", "")
     prior_letter = payload.get("prior_letter", "")
+    extra_facts = payload.get("extra_facts", "")
     config = payload.get("config", {})
     data = payload.get("data", {})
 
@@ -387,6 +388,7 @@ async def cover_letter_endpoint(request: Request):
             prior_letter if prior_letter and prior_letter.strip() else None,
             tone,
             provider,
+            extra_facts if extra_facts and extra_facts.strip() else None,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
