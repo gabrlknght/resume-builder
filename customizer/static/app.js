@@ -380,11 +380,37 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+function easedScrollTo(container, targetTop, duration) {
+    const startTop = container.scrollTop;
+    const diff = targetTop - startTop;
+    const startTime = performance.now();
+    function step(now) {
+        const t = Math.min((now - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic: decelerates near the target
+        container.scrollTop = startTop + diff * eased;
+        if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+function scrollToLastEntry(listId) {
+    const list = document.getElementById(listId);
+    const last = list && list.lastElementChild;
+    if (!last) return;
+    const container = list.closest(".editor-pane") || document.scrollingElement;
+    const startTop = container.scrollTop;
+    last.scrollIntoView({ block: "center" }); // no "behavior" = instant jump, just used to compute the target
+    const targetTop = container.scrollTop;
+    container.scrollTop = startTop;
+    easedScrollTo(container, targetTop, 550);
+}
+
 function addEducation() {
     if (!state.education) state.education = { education: [] };
     if (!state.education.education) state.education.education = [];
     state.education.education.push({ institution: "", location: "", degree: "", duration: "" });
     renderEducation();
+    scrollToLastEntry("education-list");
 }
 
 function removeEducation(index) {
@@ -488,6 +514,7 @@ function addExperience() {
         details: [],
     });
     renderExperience();
+    scrollToLastEntry("experience-list");
 }
 
 function removeExperience(index) {
@@ -637,6 +664,7 @@ function addProject() {
         status: "ongoing",
     });
     renderProjects();
+    scrollToLastEntry("projects-list");
 }
 
 function removeProject(index) {
@@ -732,6 +760,7 @@ function addSkillCategory() {
     if (!state.skills.skills) state.skills.skills = [];
     state.skills.skills.push({ category: "", items: [] });
     renderSkills();
+    scrollToLastEntry("skills-list");
 }
 
 function removeSkillCategory(index) {

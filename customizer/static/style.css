@@ -321,6 +321,22 @@ button:active {
     border-bottom: 1px solid var(--border);
 }
 
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.section-header .section-title {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
 /* ---- Form fields (skill spec) ---- */
 .field {
     margin-bottom: 0.75rem;
