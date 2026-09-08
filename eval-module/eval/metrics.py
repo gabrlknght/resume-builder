@@ -23,10 +23,8 @@ Run them on every tailored output before you trust it in production.
 from __future__ import annotations
 
 import re
-import json
 from collections import Counter
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Tokenization

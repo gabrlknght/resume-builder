@@ -38,9 +38,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from metrics import (
     run_all_metrics,
-    flatten_resume_to_text,
-    job_alignment_score,
-    content_preservation_score,
 )
 from schemas import TailoredResponse
 
@@ -56,7 +53,7 @@ def _parse_output(output: str) -> dict[str, Any] | None:
     if text.startswith("```"):
         lines = text.split("\n")
         # Remove first and last fence lines
-        lines = [l for l in lines if not l.strip().startswith("```")]
+        lines = [line for line in lines if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
     try:
         return json.loads(text)

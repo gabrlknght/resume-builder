@@ -24,10 +24,10 @@ Fixture hierarchy
 
 from __future__ import annotations
 
+import glob as glob_module
 import json
 import os
 import sys
-import glob as glob_module
 from pathlib import Path
 from typing import Any
 

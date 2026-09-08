@@ -18,10 +18,9 @@ beyond type checking (e.g. date format, URL non-mutation).
 from __future__ import annotations
 
 import re
-from typing import Optional, List, Literal
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, HttpUrl, field_validator, model_validator
-
+from pydantic import BaseModel, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Date format helper

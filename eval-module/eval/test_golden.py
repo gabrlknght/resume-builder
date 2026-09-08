@@ -50,17 +50,15 @@ import os
 from typing import Any
 
 import pytest
-
 from metrics import (
-    flatten_resume_to_text,
-    job_alignment_score,
-    content_preservation_score,
-    immutable_field_violations,
-    hallucination_check,
     bullet_count_check,
+    content_preservation_score,
+    flatten_resume_to_text,
+    hallucination_check,
+    immutable_field_violations,
+    job_alignment_score,
 )
 from schemas import TailoredResponse
-
 
 # ---------------------------------------------------------------------------
 # Tailor function — calls the local server API or the function directly
@@ -107,8 +105,8 @@ def _call_tailor_api(
         pass
 
     # Fall back to HTTP call
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -208,7 +206,7 @@ def test_golden_case(
 
     # --- Step 1: Schema validation ---
     try:
-        parsed = TailoredResponse(**tailored)
+        TailoredResponse(**tailored)
     except Exception as exc:
         pytest.fail(
             f"[{case}] Pydantic schema validation failed:\n{exc}\n\n"

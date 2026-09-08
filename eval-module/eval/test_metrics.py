@@ -28,19 +28,16 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 from metrics import (
-    job_alignment_score,
+    bullet_count_check,
     content_preservation_score,
-    keyword_injection_report,
+    flatten_resume_to_text,
     hallucination_check,
     immutable_field_violations,
-    bullet_count_check,
-    flatten_resume_to_text,
+    job_alignment_score,
+    keyword_injection_report,
     run_all_metrics,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -163,7 +160,7 @@ class TestHallucination:
         new_numbers = hallucination_check(orig_text, tail_text)
 
         assert len(new_numbers) == 0, (
-            f"Hallucinated numbers detected (present in tailored but not original):\n"
+            "Hallucinated numbers detected (present in tailored but not original):\n"
             + "\n".join(f"  - {n}" for n in new_numbers)
             + "\n\nReview the tailored output for fabricated metrics."
         )
@@ -211,7 +208,7 @@ class TestKeywordInjection:
 
         missing = [kw for kw in critical_keywords if kw not in tail_text]
         assert not missing, (
-            f"Critical backend JD keywords missing from tailored resume:\n"
+            "Critical backend JD keywords missing from tailored resume:\n"
             + "\n".join(f"  - {kw}" for kw in missing)
         )
 
@@ -252,7 +249,7 @@ class TestImmutableFieldMetrics:
         """
         violations = immutable_field_violations(sample_resume, mock_tailored_backend)
         assert violations == [], (
-            f"Unexpected immutable field violations:\n"
+            "Unexpected immutable field violations:\n"
             + "\n".join(f"  - {v}" for v in violations)
         )
 
@@ -267,7 +264,7 @@ class TestImmutableFieldMetrics:
         """
         issues = bullet_count_check(sample_resume, mock_tailored_backend)
         assert issues == [], (
-            f"Unexpected bullet count issues:\n"
+            "Unexpected bullet count issues:\n"
             + "\n".join(f"  - {i}" for i in issues)
         )
 

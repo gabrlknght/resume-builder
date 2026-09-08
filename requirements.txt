@@ -5,3 +5,4 @@ openai
 pydantic
 instructor>=1.7.0
 ruff  # dev: `npm run lint` / `make lint` runs `ruff check .`
+pytest  # dev: runs eval-module/eval test suite

@@ -15,18 +15,14 @@ Tests are grouped into four classes:
 
 import pytest
 from pydantic import ValidationError
-
 from schemas import (
     ExperienceEntry,
     ExperienceSchema,
     ProfileSchema,
     ProjectEntry,
     ProjectsSchema,
-    EducationEntry,
-    EducationSchema,
     TailoredResponse,
 )
-
 
 # ===================================================================
 # Experience Integrity
