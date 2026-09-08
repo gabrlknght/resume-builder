@@ -326,11 +326,7 @@ class MetricsTracker:
 
         @asynccontextmanager
         async def _ctx():
-            _t0 = time.monotonic()
-            try:
-                resp = await coro
-            finally:
-                elapsed = time.monotonic() - _t0
+            resp = await coro
 
             # Extract completion tokens from instructor response
             tokens = 0

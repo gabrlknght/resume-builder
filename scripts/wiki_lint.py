@@ -9,11 +9,10 @@ Checks performed:
 Exit code 0 = all clean. Exit code 1 = issues found (report printed to stderr).
 """
 
-import json
 import os
 import re
 import sys
-from datetime import date, timedelta
+from datetime import date
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIKI_DIR = os.path.join(BASE_DIR, "wiki")
