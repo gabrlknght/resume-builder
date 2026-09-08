@@ -159,3 +159,16 @@ Function was annotated `-> str` but returned `dict`.
   - + Timeout fix reduces spurious Stage 3 failures for local providers
   - - Token counts depend on the provider populating a `usage` block; not guaranteed for all OpenAI-compatible local servers
   - - Stage 3 still fires concurrently against local providers — the timeout bump papers over queuing rather than avoiding it
+
+## ADR-010: Merged `eval-module/` onto main
+
+- **Date:** 2026-09-08
+- **Status:** Accepted
+- **Context:** `pipeline.py`'s Stage 4 has imported `eval-module/eval` behind a `try/except` since the pipeline's original April 2026 commit, anticipating the module would land later. It did — five weeks after, as five `feat(eval)`/`docs(eval)` commits — but only on `upstream/feat/multi-stage-tailoring-pipeline`, a fork branch that never merged into this repo's `main`. Because the import failure is swallowed silently, `HAS_EVAL_METRICS` stayed `False` and Stage 4 eval scoring quietly never ran for five months; nothing errored, so nobody noticed until a cleanup review flagged the discrepancy between `AGENTS.md` (which documented the module as live) and the actual code path.
+- **Decision:** Cherry-picked the 5 `eval-module` commits directly onto `main` rather than merging `upstream/main` wholesale — `upstream/main` had diverged too far (missing most of this fork's work since, including a stray committed `.pyc`) to merge cleanly. Also fixed the merged module's own pre-existing lint issues (`ruff --fix` plus two manual fixes: an ambiguous `l` loop variable, an unused `parsed` binding) so `ruff check .` stays clean project-wide, and declared `pytest` in `requirements.txt` since the eval suite needs it and nothing previously declared it.
+- **Consequences:**
+  - + `HAS_EVAL_METRICS` is now `True`; Stage 4 computes `job_alignment_score`, `content_preservation`, `hallucinated_numbers` as originally designed
+  - + `eval-module/eval`'s own test suite (34 tests, `pytest eval-module/eval -m "not slow"`) is runnable and passing
+  - + `AGENTS.md`'s existing claim that Stage 4 uses the eval module is now accurate — no doc change needed there
+  - - The module's `slow`-marked LLM regression tests (`test_golden.py`) still need a live API key and aren't run in this pass
+  - - `upstream/main` remains far behind this fork; a future upstream sync is a separate, larger decision not addressed here

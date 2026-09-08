@@ -6,6 +6,19 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-09-08] update | Merged eval-module onto main; closed remaining ruff findings
+
+Follow-up to the same-day cleanup pass below: resolved the flagged eval-module gap and the two pre-existing ruff findings it left open.
+
+- Cherry-picked the 5 `feat(eval)`/`docs(eval)` commits (`fabd3fb`..`da2eb02`, author Ankit Jangwan) from `upstream/feat/multi-stage-tailoring-pipeline` onto `main` — no conflicts. See [[../decisions/index#adr-010-merged-eval-module-onto-main|ADR-010]] for why a wholesale `upstream/main` merge wasn't viable and what closing the gap involved.
+- `pipeline.py`'s `HAS_EVAL_METRICS` now resolves `True`; Stage 4 eval scoring (`job_alignment_score`, `content_preservation`, `hallucinated_numbers`) runs for the first time since the pipeline was written
+- Ran `ruff --fix` across the newly merged `eval-module/`, plus two manual fixes (ambiguous `l` loop variable, unused `parsed` binding) — `ruff check .` is clean project-wide again
+- Added `pytest` to `requirements.txt` (needed by `eval-module/eval`'s own test suite, previously undeclared); 34 non-slow tests pass
+- Removed the two remaining flagged findings from the prior entry: dead `elapsed` local in `pipeline.py`'s `MetricsTracker.track()`, and unused `json`/`timedelta` imports in `scripts/wiki_lint.py`
+- Updated `wiki/architecture/pipeline.md` (Stage 4 description, Eval metrics section) and `wiki/architecture/system.md` (directory map) to reflect `eval-module/` now living on `main`
+
+**Remaining, deliberately out of scope:** `eval-module/eval/test_golden.py`'s `slow`-marked LLM regression tests need a live API key and weren't run. `upstream/main` is still far behind this fork generally — syncing further than the eval module is a separate decision.
+
 ## [2026-09-08] update | Dependency upgrades, dead code removal, doc sync
 
 Package updates (Python `.venv` + npm majors) plus cleanup pass following a local-LLM review.

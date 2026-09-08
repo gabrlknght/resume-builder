@@ -2,7 +2,7 @@
 title: System Architecture
 type: architecture
 last_updated: 2026-09-08
-sources: [AGENTS.md, customizer/server.py, .github/workflows/build-resume.yml, customizer/static/app.js]
+sources: [AGENTS.md, customizer/server.py, .github/workflows/build-resume.yml, customizer/static/app.js, eval-module/eval/]
 ---
 
 # System Architecture
@@ -51,6 +51,10 @@ resume-builder/
 │   │   └── style.min.css        # Minified (served by default)
 │   └── templates/
 │       └── index.html           # Jinja2 HTML template for web UI
+├── eval-module/eval/            # Stage 4 eval metrics (cherry-picked onto main 2026-09-08)
+│   ├── metrics.py                # job_alignment_score, content_preservation, etc. (stdlib-only)
+│   ├── schemas.py                # Pydantic v2 contract for tailored output
+│   └── test_*.py                 # pytest suite; `pytest eval-module/eval -m "not slow"`
 └── .github/workflows/
     └── build-resume.yml         # CI/CD: JSON → PDF on push
 ```

@@ -2,8 +2,8 @@
 title: AI Tailoring Pipeline
 type: architecture
 last_updated: 2026-09-08
-amended: 2026-07-02
-sources: [AGENTS.md, customizer/pipeline.py, customizer/TAILOR_SKILL.md]
+amended: 2026-09-08
+sources: [AGENTS.md, customizer/pipeline.py, customizer/TAILOR_SKILL.md, eval-module/eval/metrics.py, eval-module/eval/schemas.py]
 ---
 
 # AI Tailoring Pipeline
@@ -23,8 +23,8 @@ Stage 3: Section Tailoring — 3 parallel LLM calls via asyncio.gather
 Stage 3.5: Keyword Mapping — Deterministic diff-based keyword traceability
                              NEW (2026-07-02): produces mapping matrix
 Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + eval metrics
-                                    (eval metrics require the optional `eval-module/`, which is not on
-                                     `main`; when absent, `HAS_EVAL_METRICS` is False and scoring is skipped)
+                             (eval metrics come from `eval-module/`, cherry-picked onto `main`
+                              2026-09-08; HAS_EVAL_METRICS is True and scoring runs)
                              + injects keyword_mapping into final output
 ```
 
@@ -55,12 +55,14 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 
 **Generation metrics** — (Added 2026-07-02) A `MetricsTracker` wraps every LLM call across both the tailoring and cover-letter pipelines, summing completion tokens and wall-clock elapsed time. Attached to the final SSE event as `data.timing` (`{elapsed_seconds, total_tokens}`), persisted to history `_meta.json`, and surfaced in history tables, preview panes, and the Stats tab chart. See [[../decisions/index|Decisions]].
 
-**Eval metrics** — Stage 4 computes:
+**Eval metrics** — (Restored 2026-09-08: `eval-module/` cherry-picked from `upstream/feat/multi-stage-tailoring-pipeline`, closing a gap that had existed since the pipeline's original April 2026 commit — the `try/except` import guard silently left `HAS_EVAL_METRICS=False` for five months because the module was built on an unmerged branch and never landed on `main`.) Stage 4 computes:
 
 - `job_alignment_score` — how well tailored output matches JD keywords
 - `content_preservation` — how much original content was kept
 - `hallucinated_numbers` — detected fabricated metrics (should be 0)
 - **keyword_mapping** — (Added 2026-07-02) deterministic traceability table injected into final output by Stage 3.5
+
+Metrics logic lives in `eval-module/eval/metrics.py` (stdlib-only, no extra deps) and `schemas.py` (Pydantic v2 contract for tailored output). The module's own test suite (`eval-module/eval/test_*.py`, run via `pytest eval-module/eval -m "not slow"`) covers schema validation, metric correctness, and golden-case regressions; `pytest` is now declared in `requirements.txt` for this. A `slow` marker gates LLM-backed regression tests that need a live API key.
 
 ## Tailoring Rules (from TAILOR_SKILL.md)
 
