@@ -1,7 +1,7 @@
 ---
 title: Development Guide
 type: synthesis
-last_updated: 2026-06-28
+last_updated: 2026-09-08
 sources: [AGENTS.md, CLAUDE.md, customizer/server.py, customizer/pipeline.py]
 ---
 
@@ -42,7 +42,7 @@ Then hard-refresh in the browser (**Ctrl+Shift+R** or **Cmd+Shift+R**). The serv
 ### Build Commands
 
 | Command | What it does |
-|---|---|
+| --- | --- |
 | `npm run build` | Minify JS + CSS |
 | `npm run build:js` | JS only |
 | `npm run build:css` | CSS only |
@@ -50,13 +50,9 @@ Then hard-refresh in the browser (**Ctrl+Shift+R** or **Cmd+Shift+R**). The serv
 ### File Map
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `app.js` | Main app logic (source) |
 | `app.min.js` | Minified (served) |
-| `api-utils.js` | API call helpers |
-| `dom-utils.js` | DOM manipulation |
-| `form-utils.js` | Form handling |
-| `state.js` | Frontend state management |
 | `style.css` | Styles (source) |
 | `style.min.css` | Minified (served) |
 
@@ -75,7 +71,7 @@ make pdf
 ### Troubleshooting pdflatex
 
 | Symptom | Fix |
-|---|---|
+| --- | --- |
 | `pdflatex: command not found` | Install TeX Live: `sudo apt install texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-recommended` |
 | `! Undefined control sequence` | Check the `.log` file for the exact line number; usually a missing LaTeX package or typo in the template |
 | `Package inputenc Error` | Add `\usepackage[utf8]{inputenc}` to the template preamble if non-ASCII characters appear |
@@ -123,6 +119,7 @@ make wiki-lint
 ```
 
 Checks:
+
 - Stale `last_updated` dates (>30 days)
 - Orphan pages (no inlinks from index or other pages)
 - Expected directories (`decisions/`, `applications/`) exist

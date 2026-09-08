@@ -1,7 +1,7 @@
 ---
 title: AI Tailoring Pipeline
 type: architecture
-last_updated: 2026-07-02
+last_updated: 2026-09-08
 amended: 2026-07-02
 sources: [AGENTS.md, customizer/pipeline.py, customizer/TAILOR_SKILL.md]
 ---
@@ -23,6 +23,8 @@ Stage 3: Section Tailoring — 3 parallel LLM calls via asyncio.gather
 Stage 3.5: Keyword Mapping — Deterministic diff-based keyword traceability
                              NEW (2026-07-02): produces mapping matrix
 Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + eval metrics
+                                    (eval metrics require the optional `eval-module/`, which is not on
+                                     `main`; when absent, `HAS_EVAL_METRICS` is False and scoring is skipped)
                              + injects keyword_mapping into final output
 ```
 
@@ -43,16 +45,18 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 **SSE progress streaming** — Each stage emits a Server-Sent Event when it completes. The UI updates a progress bar stage-by-stage. No opaque spinner.
 
 **Immutable field protection** — After Stage 3, Stage 4 auto-restores any LLM-mutated immutable fields:
+
 - Company names
 - Dates (startDate, endDate)
 - Locations
 - URLs (liveUrl, socials, etc.)
 
-**Parallel tailoring** — Stage 3 runs three LLM calls concurrently (`asyncio.gather`) for profile, experience, and projects. All three calls share the same rewriting strategy template with injected context (tone, semantic concepts, must-have keywords). Reduces latency vs. sequential calls. Note: local providers (llama.cpp/Ollama) typically run a single inference slot, so these "concurrent" calls actually queue server-side — see [[../../decisions]] for the resulting timeout fix.
+**Parallel tailoring** — Stage 3 runs three LLM calls concurrently (`asyncio.gather`) for profile, experience, and projects. All three calls share the same rewriting strategy template with injected context (tone, semantic concepts, must-have keywords). Reduces latency vs. sequential calls. Note: local providers (llama.cpp/Ollama) typically run a single inference slot, so these "concurrent" calls actually queue server-side — see [[../decisions/index|Decisions]] for the resulting timeout fix.
 
-**Generation metrics** — (Added 2026-07-02) A `MetricsTracker` wraps every LLM call across both the tailoring and cover-letter pipelines, summing completion tokens and wall-clock elapsed time. Attached to the final SSE event as `data.timing` (`{elapsed_seconds, total_tokens}`), persisted to history `_meta.json`, and surfaced in history tables, preview panes, and the Stats tab chart. See [[../../decisions]].
+**Generation metrics** — (Added 2026-07-02) A `MetricsTracker` wraps every LLM call across both the tailoring and cover-letter pipelines, summing completion tokens and wall-clock elapsed time. Attached to the final SSE event as `data.timing` (`{elapsed_seconds, total_tokens}`), persisted to history `_meta.json`, and surfaced in history tables, preview panes, and the Stats tab chart. See [[../decisions/index|Decisions]].
 
 **Eval metrics** — Stage 4 computes:
+
 - `job_alignment_score` — how well tailored output matches JD keywords
 - `content_preservation` — how much original content was kept
 - `hallucinated_numbers` — detected fabricated metrics (should be 0)
@@ -61,6 +65,7 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 ## Tailoring Rules (from TAILOR_SKILL.md)
 
 **Can be changed:**
+
 - `profile.title` — match JD role title
 - `profile.bio` — emphasize JD-relevant experience
 - `experience[].role` — match JD title
@@ -70,6 +75,7 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 - `contact.availability` — tailor to JD
 
 **Never changed (immutable):**
+
 - `profile.name`, `profile.avatar`, `profile.socials`
 - `experience[].company`, `.startDate`, `.endDate`, `.location`, `.logo`
 - `education.*` (all fields)
@@ -81,7 +87,7 @@ Stage 4: Validate & Assemble — Pydantic validation + immutable field checks + 
 Before tailoring, rate the JD on a 1–10 scale:
 
 | Score | Meaning |
-|---|---|
+| --- | --- |
 | 9–10 | Perfect match — most skills already in data |
 | 7–8 | Strong match — minor rephrasing |
 | 5–6 | Moderate match — some gaps |
@@ -93,12 +99,14 @@ If rating ≤ 2, pipeline auto-exits without tailoring (early-out).
 ## Anti-Slop Rules
 
 Never produce:
+
 - "Collaborated with cross-functional teams"
 - "Drove strategic initiatives"
 - "Leveraged cutting-edge solutions"
 - "Played a key role in"
 
 Always use the quantification format:
+
 ```
 [Action Verb] + [What] + [How/Why] + [Result/Impact]
 ```
@@ -108,4 +116,4 @@ Example: "Optimized Django queries using select_related/prefetch_related, reduci
 ## Related Pages
 
 - [[system]] — overall architecture
-- [[experience]] — the data being tailored
+- `data/experience.json` — the data being tailored (not mirrored into the wiki)

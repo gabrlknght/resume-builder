@@ -1,7 +1,7 @@
 ---
 title: Project Overview
 type: overview
-last_updated: 2026-07-07
+last_updated: 2026-09-08
 sources: [AGENTS.md, customizer/TAILOR_SKILL.md]
 ---
 
@@ -27,6 +27,7 @@ The JSON files are the single source of truth. The LaTeX template (Jinja2) injec
 ## AI Tailoring
 
 The `/api/tailor` endpoint accepts a job description and runs a 5-stage LLM pipeline (JD Analysis, Match & Score, Section Tailoring, Keyword Mapping, Validation) to rewrite resume sections. See [[pipeline]] for detail. Key design choices:
+
 - Structured output via `instructor` (Pydantic validation + auto-retry)
 - BYOK: user supplies their own API key and model (OpenAI, Gemini, Cerebras, OpenRouter)
 - SSE progress streaming so the UI shows stage-by-stage updates, not a spinner
@@ -34,7 +35,7 @@ The `/api/tailor` endpoint accepts a job description and runs a 5-stage LLM pipe
 
 ## The Owner
 
-**Avik Nandy** — Enterprise WordPress engineer, 8+ years. Owner of Harbinger Industries (Alexandria, VA). Also a designer and long-time contractor. Specializes in PHP/JavaScript, WordPress enterprise, CI/CD, and increasingly AI-first workflows. See [[profile]] and [[experience]].
+**Avik Nandy** — Enterprise WordPress engineer, 8+ years. Owner of Harbinger Industries (Alexandria, VA). Also a designer and long-time contractor. Specializes in PHP/JavaScript, WordPress enterprise, CI/CD, and increasingly AI-first workflows. Source of truth: `data/profile.json` and `data/experience.json` (resume content is not mirrored into the wiki).
 
 ## Design Philosophy
 
@@ -47,5 +48,3 @@ The `/api/tailor` endpoint accepts a job description and runs a 5-stage LLM pipe
 
 - [[system]] — tech stack and architecture detail
 - [[pipeline]] — 5-stage tailoring pipeline
-- [[profile]] — current resume profile
-- [[experience]] — full work history

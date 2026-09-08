@@ -1,7 +1,7 @@
 ---
 title: Decisions Log
 type: synthesis
-last_updated: 2026-07-07
+last_updated: 2026-09-08
 sources: []
 ---
 
@@ -152,7 +152,7 @@ Function was annotated `-> str` but returned `dict`.
 - **Date:** 2026-07-02
 - **Status:** Accepted
 - **Context:** Users running local providers (llama.cpp/Ollama) had no visibility into token counts, elapsed time, or throughput per generation.
-- **Decision:** Added a `MetricsTracker` wrapping every LLM call to sum completion tokens and wall-clock elapsed time, surfaced through history tables, both preview panes, and a dual-axis "Avg tok/s" line on the Stats chart. Also raised the `llamacpp` client timeout 120s → 600s after discovering Stage 3's concurrent calls queue behind each other on single-slot local servers. See [[2026-07-02_generation-metrics-tracking]] for full detail.
+- **Decision:** Added a `MetricsTracker` wrapping every LLM call to sum completion tokens and wall-clock elapsed time, surfaced through history tables, both preview panes, and a dual-axis "Avg tok/s" line on the Stats chart. Also raised the `llamacpp` client timeout 120s → 600s after discovering Stage 3's concurrent calls queue behind each other on single-slot local servers.
 - **Consequences:**
   - + Per-generation throughput and duration visible across tables, previews, and a trend chart
   - + Metrics degrade gracefully for pre-existing history (no `timing` key)

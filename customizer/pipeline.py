@@ -30,14 +30,14 @@ from pydantic import BaseModel, field_validator, model_validator
 # ---------------------------------------------------------------------------
 # Eval-module imports
 # ---------------------------------------------------------------------------
+run_all_metrics: Any = None
 try:
-    sys.path.insert(
-        0, str(Path(__file__).resolve().parent.parent / "eval-module" / "eval")
-    )
-    from metrics import run_all_metrics  # noqa: E402
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "eval-module" / "eval"))
+    from metrics import run_all_metrics  # type: ignore[import-not-found]  # noqa: E402
 
     HAS_EVAL_METRICS = True
 except Exception:
+    # eval-module is optional and not present on this branch; Stage 4 skips scoring.
     HAS_EVAL_METRICS = False
 
 
@@ -51,12 +51,10 @@ PROVIDER_CONFIGS = {
     "llamacpp": {
         "base_url": "http://localhost:8080"  # no /v1 prefix — server expects plain host:port
     },
-    "ollama": {
-        "base_url": "http://localhost:11434/v1"
-    },
+    "ollama": {"base_url": "http://localhost:11434/v1"},
     "openai": {"base_url": None},  # Native OpenAI API
     "openrouter": {"base_url": "https://openrouter.ai/api/v1"},
-    "mock": {}
+    "mock": {},
 }
 
 # Ollama model alias mapping (short names -> full Ollama model IDs)
@@ -118,10 +116,7 @@ def get_instructor_client(config: dict):
         return instructor.from_openai(raw_client, mode=instructor.Mode.JSON)
     else:
         # All other providers need API key and use OpenAI-compatible API
-        raw_client = openai.AsyncOpenAI(
-            api_key=api_key,
-            base_url=resolved_base_url
-        )
+        raw_client = openai.AsyncOpenAI(api_key=api_key, base_url=resolved_base_url)
         return instructor.from_openai(raw_client)
 
 
@@ -403,7 +398,9 @@ Additionally, extract:
 Return exactly one JSON object matching the schema below — do NOT include any reasoning or explanation text outside the JSON."""
 
 
-async def analyze_jd(client, jd_text: str, model: str, tracker: Optional[MetricsTracker] = None) -> JDAnalysis:
+async def analyze_jd(
+    client, jd_text: str, model: str, tracker: Optional[MetricsTracker] = None
+) -> JDAnalysis:
     coro = client.chat.completions.create(
         model=model,
         messages=[
@@ -524,21 +521,30 @@ Incorrect: {{"properties": {{"name": "...", "title": "...", "bio": "..."}}}}
 Do NOT include any "thought", reasoning, or explanation text outside the JSON."""
 
 
-STAGE3_PROFILE_STRATEGY = STAGE3_REWRITE_STRATEGY + "\n\nRewrite the profile section (bio and title) to align with the target role while preserving the candidate's identity and core expertise."
+STAGE3_PROFILE_STRATEGY = (
+    STAGE3_REWRITE_STRATEGY
+    + "\n\nRewrite the profile section (bio and title) to align with the target role while preserving the candidate's identity and core expertise."
+)
 
-STAGE3_EXPERIENCE_STRATEGY = STAGE3_REWRITE_STRATEGY + """
+STAGE3_EXPERIENCE_STRATEGY = (
+    STAGE3_REWRITE_STRATEGY
+    + """
 
 Experience-specific rules:
 - You may reorder bullets within a role to lead with the most ATS-relevant achievements
 - Preserve company names, dates, locations, logos, and role start/end dates exactly
 - Quantify impact using: [Action Verb] + [What] + [How] + [Result]"""
+)
 
-STAGE3_PROJECTS_STRATEGY = STAGE3_REWRITE_STRATEGY + """
+STAGE3_PROJECTS_STRATEGY = (
+    STAGE3_REWRITE_STRATEGY
+    + """
 
 Projects-specific rules:
 - You may reorder the technologies list to surface the most role-relevant ones first, but only keep technologies already present — do not add new ones
 - Preserve project titles, live URLs, images, and status fields exactly as given
 - Keep descriptions concise and focused on technical impact"""
+)
 
 
 def _tailor_context(jd_analysis: JDAnalysis, tone: str, section_type: str) -> dict:
@@ -560,8 +566,12 @@ def _tailor_context(jd_analysis: JDAnalysis, tone: str, section_type: str) -> di
 
 
 async def tailor_profile(
-    client, profile: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
-    tracker: Optional[MetricsTracker] = None
+    client,
+    profile: dict,
+    jd_analysis: JDAnalysis,
+    model: str,
+    tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None,
 ) -> TailoredProfile:
     ctx = _tailor_context(jd_analysis, tone, "profile")
     strategy = STAGE3_PROFILE_STRATEGY.format(**ctx)
@@ -594,8 +604,12 @@ async def tailor_profile(
 
 
 async def tailor_experience(
-    client, experience: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
-    tracker: Optional[MetricsTracker] = None
+    client,
+    experience: dict,
+    jd_analysis: JDAnalysis,
+    model: str,
+    tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None,
 ) -> ExperienceList:
     ctx = _tailor_context(jd_analysis, tone, "experience")
     strategy = STAGE3_EXPERIENCE_STRATEGY.format(**ctx)
@@ -629,8 +643,12 @@ async def tailor_experience(
 
 
 async def tailor_projects(
-    client, projects: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
-    tracker: Optional[MetricsTracker] = None
+    client,
+    projects: dict,
+    jd_analysis: JDAnalysis,
+    model: str,
+    tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None,
 ) -> ProjectList:
     ctx = _tailor_context(jd_analysis, tone, "projects")
     strategy = STAGE3_PROJECTS_STRATEGY.format(**ctx)
@@ -663,9 +681,13 @@ async def tailor_projects(
 
 
 async def tailor_all_sections(
-    client, resume_data: dict, jd_analysis: JDAnalysis, model: str, tone: str = "professional",
-    tracker: Optional[MetricsTracker] = None
-) -> tuple[dict, list[dict], list[dict]]:
+    client,
+    resume_data: dict,
+    jd_analysis: JDAnalysis,
+    model: str,
+    tone: str = "professional",
+    tracker: Optional[MetricsTracker] = None,
+) -> tuple[TailoredProfile, ExperienceList, ProjectList]:
     profile_task = tailor_profile(
         client, resume_data.get("profile", {}), jd_analysis, model, tone, tracker
     )
@@ -682,7 +704,7 @@ async def tailor_all_sections(
 
 
 # ---------------------------------------------------------------------------
-# Stage 4: Validate & Assemble
+# Stage 3.5: Keyword Mapping Matrix (deterministic)
 # ---------------------------------------------------------------------------
 def build_keyword_matrix(
     original_data: dict,
@@ -715,12 +737,14 @@ def build_keyword_matrix(
             orig_text = orig_bullets[j] if j < len(orig_bullets) else ""
             for kw in keywords:
                 if kw.lower() in tail_text.lower():
-                    matrix.append({
-                        "extracted_keyword": kw,
-                        "original_phrasing": _truncate(orig_text),
-                        "new_position": _truncate(tail_text),
-                        "context": context,
-                    })
+                    matrix.append(
+                        {
+                            "extracted_keyword": kw,
+                            "original_phrasing": _truncate(orig_text),
+                            "new_position": _truncate(tail_text),
+                            "context": context,
+                        }
+                    )
 
     orig_proj = original_data.get("projects", {}).get("projects", [])
     tail_proj = tailored_sections.get("projects", {}).get("projects", [])
@@ -731,12 +755,14 @@ def build_keyword_matrix(
         if orig_desc != tail_desc:
             for kw in keywords:
                 if kw.lower() in tail_desc.lower():
-                    matrix.append({
-                        "extracted_keyword": kw,
-                        "original_phrasing": _truncate(orig_desc),
-                        "new_position": _truncate(tail_desc),
-                        "context": tail_proj[i].get("title", ""),
-                    })
+                    matrix.append(
+                        {
+                            "extracted_keyword": kw,
+                            "original_phrasing": _truncate(orig_desc),
+                            "new_position": _truncate(tail_desc),
+                            "context": tail_proj[i].get("title", ""),
+                        }
+                    )
 
     # Deduplicate by (keyword, new_position)
     seen: set[tuple[str, str]] = set()
@@ -797,7 +823,14 @@ def validate_and_assemble(
 # ---------------------------------------------------------------------------
 # Pipeline orchestrator
 # ---------------------------------------------------------------------------
-async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone: str = "professional", provider: str = "openai"):
+async def run_pipeline(
+    client,
+    model: str,
+    jd_text: str,
+    resume_data: dict,
+    tone: str = "professional",
+    provider: str = "openai",
+):
     tracker = MetricsTracker()
     try:
         yield sse_event(
@@ -889,7 +922,11 @@ async def run_pipeline(client, model: str, jd_text: str, resume_data: dict, tone
         )
         keyword_matrix = build_keyword_matrix(
             resume_data,
-            {"profile": profile.model_dump(), "experience": experience.model_dump(), "projects": projects.model_dump()},
+            {
+                "profile": profile.model_dump(),
+                "experience": experience.model_dump(),
+                "projects": projects.model_dump(),
+            },
             jd_analysis,
         )
         yield sse_event({"stage": 35, "status": "complete"})
@@ -1019,9 +1056,7 @@ async def generate_cover_letter(
         f"Must-have requirements: {[r.skill for r in jd_analysis.requirements if r.priority == 'must_have'][:8]}\n"
         f"Domain: {jd_analysis.domain}\n"
         f"ATS keywords: {jd_analysis.ats_keywords[:15]}\n\n"
-        f"Job Description (excerpt):\n{jd_text[:2500]}"
-        + prior_section
-        + extra_facts_section
+        f"Job Description (excerpt):\n{jd_text[:2500]}" + prior_section + extra_facts_section
     )
 
     coro = client.chat.completions.create(
@@ -1070,7 +1105,11 @@ async def run_cover_letter_pipeline(
         )
 
         yield sse_event(
-            {"stage": 2, "status": "in_progress", "message": "Matching resume credentials to role..."}
+            {
+                "stage": 2,
+                "status": "in_progress",
+                "message": "Matching resume credentials to role...",
+            }
         )
         match_report = compute_match_score(resume_data, jd_analysis)
         yield sse_event(
@@ -1091,7 +1130,15 @@ async def run_cover_letter_pipeline(
         )
         yield sse_event({"stage": 3, "status": "in_progress", "message": stage3_msg})
         cover_letter = await generate_cover_letter(
-            client, model, jd_text, jd_analysis, resume_data, prior_letter, tone, tracker, extra_facts
+            client,
+            model,
+            jd_text,
+            jd_analysis,
+            resume_data,
+            prior_letter,
+            tone,
+            tracker,
+            extra_facts,
         )
         yield sse_event({"stage": 3, "status": "complete"})
 

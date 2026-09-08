@@ -8,15 +8,15 @@
 // ---------------------------------------------------------------------------
 // State — hydrated from server-rendered window.__DATA__
 // ---------------------------------------------------------------------------
-const state = JSON.parse(JSON.stringify(window.__DATA__));
+const state = structuredClone(window.__DATA__);
 
 // Staged review state for AI tailoring
-let originalSnapshot = null;   // pre-tailoring state for Reset
-let pendingTailored = null;    // AI results awaiting user approval
+let originalSnapshot = null; // pre-tailoring state for Reset
+let pendingTailored = null; // AI results awaiting user approval
 let currentPreviewTab = "pdf"; // "pdf" | "ai" | "letter"
-let lastAiResultsHTML = "";    // persisted AI results HTML
-let coverLetterData = null;    // last generated cover letter data
-let lastCoverLetterHTML = "";  // persisted cover letter HTML
+let lastAiResultsHTML = ""; // persisted AI results HTML
+let coverLetterData = null; // last generated cover letter data
+let lastCoverLetterHTML = ""; // persisted cover letter HTML
 
 // PDF preview state
 let pdfBlob = null;
@@ -28,37 +28,42 @@ let totalPages = 0;
 // Save Settings Modal
 // ---------------------------------------------------------------------------
 function showSettingsModal() {
-    document.getElementById('settings-modal').style.display = 'flex';
+    document.getElementById("settings-modal").style.display = "flex";
 }
 
 function hideSettingsModal() {
-    document.getElementById('settings-modal').style.display = 'none';
+    document.getElementById("settings-modal").style.display = "none";
 }
 
 function applySettings() {
     const mode = document.querySelector('input[name="saveMode"]:checked').value;
-    localStorage.setItem('resume-save-mode', mode);
+    localStorage.setItem("resume-save-mode", mode);
     hideSettingsModal();
     updateSaveIndicator(mode);
     updateUnsavedChangesWarning();
-    toast('SETTINGS SAVED (' + mode.toUpperCase() + ')');
+    toast("SETTINGS SAVED (" + mode.toUpperCase() + ")");
 }
 
 function loadSettings() {
-    const saved = localStorage.getItem('resume-save-mode');
-    const mode = saved || 'auto';
+    const saved = localStorage.getItem("resume-save-mode");
+    const mode = saved || "auto";
     const radios = document.querySelectorAll('input[name="saveMode"]');
-    radios.forEach(function(r) { r.checked = r.value === mode; });
+    radios.forEach(function (r) {
+        r.checked = r.value === mode;
+    });
     updateSaveIndicator(mode);
     updateUnsavedChangesWarning();
 }
 
 function updateSaveIndicator(mode) {
-    const el = document.getElementById('save-mode-indicator');
+    const el = document.getElementById("save-mode-indicator");
     if (el) {
-        var icon = mode === 'auto' ? '\u2699\uFE0F' : '\uD83D\uDDB1';
-        el.textContent = icon + ' ' + mode.toUpperCase();
-        el.title = mode === 'auto' ? 'Auto-save enabled (2s after typing stops). Click to change.' : 'Manual save only. Click to change.';
+        var icon = mode === "auto" ? "\u2699\uFE0F" : "\uD83D\uDDB1";
+        el.textContent = icon + " " + mode.toUpperCase();
+        el.title =
+            mode === "auto"
+                ? "Auto-save enabled (2s after typing stops). Click to change."
+                : "Manual save only. Click to change.";
     }
 }
 
@@ -71,9 +76,9 @@ var _hasUnsavedChanges = false;
 function scheduleAutoSave() {
     _hasUnsavedChanges = true;
     updateUnsavedChangesWarning();
-    if (localStorage.getItem('resume-save-mode') !== 'auto') return;
+    if (localStorage.getItem("resume-save-mode") !== "auto") return;
     clearAutoSaveTimer();
-    _saveTimer = setTimeout(function() {
+    _saveTimer = setTimeout(function () {
         saveToBackend(true);
     }, 2000);
 }
@@ -86,35 +91,35 @@ function clearAutoSaveTimer() {
 }
 
 function updateUnsavedChangesWarning() {
-    var el = document.getElementById('unsaved-changes-warning');
+    var el = document.getElementById("unsaved-changes-warning");
     if (!el) return;
-    var mode = localStorage.getItem('resume-save-mode');
-    if (mode === 'manual' && _hasUnsavedChanges) {
-        el.style.display = 'inline-block';
+    var mode = localStorage.getItem("resume-save-mode");
+    if (mode === "manual" && _hasUnsavedChanges) {
+        el.style.display = "inline-block";
     } else {
-        el.style.display = 'none';
+        el.style.display = "none";
     }
 }
 
 function showTopNotification(message) {
-    var el = document.getElementById('top-notification');
+    var el = document.getElementById("top-notification");
     if (!el) return;
     el.textContent = message;
-    el.className = 'top-notification visible';
-    setTimeout(function() {
-        el.className = 'top-notification';
+    el.className = "top-notification visible";
+    setTimeout(function () {
+        el.className = "top-notification";
     }, 2500);
 }
 
 function updateLastSavedIndicator() {
-    var el = document.getElementById('last-saved-indicator');
+    var el = document.getElementById("last-saved-indicator");
     if (!el) return;
     var now = new Date();
-    var hours = String(now.getHours()).padStart(2, '0');
-    var mins = String(now.getMinutes()).padStart(2, '0');
-    var secs = String(now.getSeconds()).padStart(2, '0');
-    el.textContent = 'SAVED ' + hours + ':' + mins + ':' + secs;
-    el.style.display = 'inline-block';
+    var hours = String(now.getHours()).padStart(2, "0");
+    var mins = String(now.getMinutes()).padStart(2, "0");
+    var secs = String(now.getSeconds()).padStart(2, "0");
+    el.textContent = "SAVED " + hours + ":" + mins + ":" + secs;
+    el.style.display = "inline-block";
 }
 
 // ---------------------------------------------------------------------------
@@ -151,9 +156,15 @@ function initTabs() {
         btn.addEventListener("click", () => {
             btns.forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
-            document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
-            document.getElementById("section-" + btn.dataset.tab).classList.add("active");
-            document.querySelector(".layout").classList.toggle("no-preview", btn.dataset.tab === "stats");
+            document
+                .querySelectorAll(".section")
+                .forEach((s) => s.classList.remove("active"));
+            document
+                .getElementById("section-" + btn.dataset.tab)
+                .classList.add("active");
+            document
+                .querySelector(".layout")
+                .classList.toggle("no-preview", btn.dataset.tab === "stats");
             if (btn.dataset.tab === "history") {
                 loadHistoryDashboard(1);
             }
@@ -174,7 +185,9 @@ function switchPreviewTab(tab) {
     const tabLetter = document.getElementById("tab-letter");
     const pageNav = document.getElementById("page-nav");
 
-    [tabPdf, tabAi, tabLetter].forEach((t) => t && t.classList.remove("active"));
+    [tabPdf, tabAi, tabLetter].forEach(
+        (t) => t && t.classList.remove("active"),
+    );
 
     if (tab === "pdf") {
         tabPdf.classList.add("active");
@@ -217,23 +230,31 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
     if (!providerSelect) return;
 
     const PROVIDER_CONFIGS = {
-        "openai": { base_url: "", model: "gpt-4o-mini" },
-        "cerebras": { base_url: "https://api.cerebras.ai/v1", model: "llama3.1-8b" },
-        "nvidia": { base_url: "https://integrate.api.nvidia.com/v1", model: "moonshotai/kimi-k2.5" },
-        "gemini": { base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.5-flash" },
-        "llamacpp": { base_url: "http://localhost:8080", model: "" },
-        "ollama": { base_url: "http://localhost:11434", model: "" },
-        "openrouter": { base_url: "https://openrouter.ai/api/v1", model: "openrouter/free" },
-        "openrouter_meta": { base_url: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct:free" },
-        "custom": { base_url: "", model: "" }
-    };
-
-    // Ollama model aliases (same as backend)
-    const OLLAMA_MODEL_ALIASES = {
-        "lfm2.5": "lfm2.5:latest",
-        "gemma4": "gemma4:e4b",
-        "qwen3.5": "qwen3.5:e4b",
-        "gpt-oss": "gpt-oss:20b",
+        openai: { base_url: "", model: "gpt-4o-mini" },
+        cerebras: {
+            base_url: "https://api.cerebras.ai/v1",
+            model: "llama3.1-8b",
+        },
+        nvidia: {
+            base_url: "https://integrate.api.nvidia.com/v1",
+            model: "moonshotai/kimi-k2.5",
+        },
+        gemini: {
+            base_url:
+                "https://generativelanguage.googleapis.com/v1beta/openai/",
+            model: "gemini-2.5-flash",
+        },
+        llamacpp: { base_url: "http://localhost:8080", model: "" },
+        ollama: { base_url: "http://localhost:11434", model: "" },
+        openrouter: {
+            base_url: "https://openrouter.ai/api/v1",
+            model: "openrouter/free",
+        },
+        openrouter_meta: {
+            base_url: "https://openrouter.ai/api/v1",
+            model: "meta-llama/llama-3.3-70b-instruct:free",
+        },
+        custom: { base_url: "", model: "" },
     };
 
     providerSelect.addEventListener("change", (e) => {
@@ -253,7 +274,7 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
 
         if (provider === "llamacpp") {
             fetch("/api/llama-cpp-models")
-                .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+                .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
                 .then((data) => {
                     const models = (data.models || []).filter(Boolean);
                     if (datalist) {
@@ -264,19 +285,25 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
                     if (models.length > 0 && !modelInput.value) {
                         modelInput.value = models[0];
                     }
-                    modelInput.placeholder = models.length ? "Select or type a model" : "No models.ini found";
+                    modelInput.placeholder = models.length
+                        ? "Select or type a model"
+                        : "No models.ini found";
                 })
                 .catch(() => {
                     modelInput.placeholder = "Could not load models.ini";
                 });
         } else if (provider === "ollama") {
-            const ollamaBase = (baseUrlInput.value || "http://localhost:11434").replace(/\/+$/, "");
+            const ollamaBase = (
+                baseUrlInput.value || "http://localhost:11434"
+            ).replace(/\/+$/, "");
             const tagsBase = ollamaBase.replace(/\/v1$/, "");
             modelInput.placeholder = "Fetching models…";
             fetch(`${tagsBase}/api/tags`)
-                .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+                .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
                 .then((data) => {
-                    const models = (data.models || []).map((m) => m.name).filter(Boolean);
+                    const models = (data.models || [])
+                        .map((m) => m.name)
+                        .filter(Boolean);
                     if (datalist) {
                         datalist.innerHTML = models
                             .map((m) => `<option value="${esc(m)}">`)
@@ -285,10 +312,13 @@ function initProviderSelect({ providerId, modelId, baseUrlId, datalistId }) {
                     if (models.length > 0 && !modelInput.value) {
                         modelInput.value = models[0];
                     }
-                    modelInput.placeholder = models.length ? "Select or type a model" : "No models found — is Ollama running?";
+                    modelInput.placeholder = models.length
+                        ? "Select or type a model"
+                        : "No models found — is Ollama running?";
                 })
                 .catch(() => {
-                    modelInput.placeholder = "Could not reach Ollama at " + ollamaBase;
+                    modelInput.placeholder =
+                        "Could not reach Ollama at " + ollamaBase;
                 });
         } else {
             modelInput.placeholder = "e.g. gpt-4o-mini";
@@ -313,7 +343,9 @@ function populateScalarFields() {
 }
 
 function getNestedValue(obj, path) {
-    return path.split(".").reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), obj);
+    return path
+        .split(".")
+        .reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), obj);
 }
 
 function setNestedValue(obj, path, value) {
@@ -371,13 +403,16 @@ function createEducationEntry(entry, index) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('education-list').addEventListener('input', function(e) {
-        if (e.target.hasAttribute('data-edu')) {
-            const idx = parseInt(e.target.dataset.edu);
-            state.education.education[idx][e.target.dataset.key] = e.target.value;
-            scheduleAutoSave();
-        }
-    });
+    document
+        .getElementById("education-list")
+        .addEventListener("input", function (e) {
+            if (e.target.hasAttribute("data-edu")) {
+                const idx = parseInt(e.target.dataset.edu);
+                state.education.education[idx][e.target.dataset.key] =
+                    e.target.value;
+                scheduleAutoSave();
+            }
+        });
 });
 
 function easedScrollTo(container, targetTop, duration) {
@@ -408,7 +443,12 @@ function scrollToLastEntry(listId) {
 function addEducation() {
     if (!state.education) state.education = { education: [] };
     if (!state.education.education) state.education.education = [];
-    state.education.education.push({ institution: "", location: "", degree: "", duration: "" });
+    state.education.education.push({
+        institution: "",
+        location: "",
+        degree: "",
+        duration: "",
+    });
     renderEducation();
     scrollToLastEntry("education-list");
 }
@@ -443,7 +483,7 @@ function createExperienceEntry(entry, index) {
         <div class="detail-item">
             <textarea data-exp="${index}" data-detail="${di}">${esc(d)}</textarea>
             <button type="button" class="btn-danger btn-small" onclick="removeDetail(${index}, ${di})">×</button>
-        </div>`
+        </div>`,
         )
         .join("");
 
@@ -487,19 +527,24 @@ function createExperienceEntry(entry, index) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('experience-list').addEventListener('input', function(e) {
-        var target = e.target;
-        if (!isNaN(parseInt(target.dataset.expField))) {
-            const idx = parseInt(target.dataset.expField);
-            state.experience.experience[idx][target.dataset.key] = target.value === "" && target.dataset.key === "endDate" ? null : target.value;
-            scheduleAutoSave();
-        } else if (!isNaN(parseInt(target.dataset.exp))) {
-            const idx = parseInt(target.dataset.exp);
-            const di = parseInt(target.dataset.detail);
-            state.experience.experience[idx].details[di] = target.value;
-            scheduleAutoSave();
-        }
-    });
+    document
+        .getElementById("experience-list")
+        .addEventListener("input", function (e) {
+            var target = e.target;
+            if (!isNaN(parseInt(target.dataset.expField))) {
+                const idx = parseInt(target.dataset.expField);
+                state.experience.experience[idx][target.dataset.key] =
+                    target.value === "" && target.dataset.key === "endDate"
+                        ? null
+                        : target.value;
+                scheduleAutoSave();
+            } else if (!isNaN(parseInt(target.dataset.exp))) {
+                const idx = parseInt(target.dataset.exp);
+                const di = parseInt(target.dataset.detail);
+                state.experience.experience[idx].details[di] = target.value;
+                scheduleAutoSave();
+            }
+        });
 });
 
 function addExperience() {
@@ -536,35 +581,39 @@ function removeDetail(expIndex, detailIndex) {
 // Drag-and-drop reordering (shared by Projects and Skills)
 // ---------------------------------------------------------------------------
 function setupDragReorder(div, index, getArray, rerenderFn) {
-    const handle = div.querySelector('.drag-handle') || div;
-    handle.setAttribute('draggable', 'true');
+    const handle = div.querySelector(".drag-handle") || div;
+    handle.setAttribute("draggable", "true");
 
-    handle.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(index));
-        setTimeout(() => div.classList.add('drag-source'), 0);
+    handle.addEventListener("dragstart", (e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(index));
+        setTimeout(() => div.classList.add("drag-source"), 0);
     });
 
-    handle.addEventListener('dragend', () => {
-        div.classList.remove('drag-source');
-        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    handle.addEventListener("dragend", () => {
+        div.classList.remove("drag-source");
+        document
+            .querySelectorAll(".drag-over")
+            .forEach((el) => el.classList.remove("drag-over"));
     });
 
-    div.addEventListener('dragover', (e) => {
+    div.addEventListener("dragover", (e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-        div.classList.add('drag-over');
+        e.dataTransfer.dropEffect = "move";
+        document
+            .querySelectorAll(".drag-over")
+            .forEach((el) => el.classList.remove("drag-over"));
+        div.classList.add("drag-over");
     });
 
-    div.addEventListener('dragleave', (e) => {
-        if (!div.contains(e.relatedTarget)) div.classList.remove('drag-over');
+    div.addEventListener("dragleave", (e) => {
+        if (!div.contains(e.relatedTarget)) div.classList.remove("drag-over");
     });
 
-    div.addEventListener('drop', (e) => {
+    div.addEventListener("drop", (e) => {
         e.preventDefault();
-        div.classList.remove('drag-over');
-        const src = parseInt(e.dataTransfer.getData('text/plain'));
+        div.classList.remove("drag-over");
+        const src = parseInt(e.dataTransfer.getData("text/plain"));
         const dest = index;
         if (src === dest) return;
         const items = getArray();
@@ -596,7 +645,7 @@ function createProjectEntry(entry, index) {
     const techTagsHtml = techs
         .map(
             (t, ti) =>
-                `<span class="tech-tag">${esc(t)}<button type="button" onclick="removeTech(${index}, ${ti})">×</button></span>`
+                `<span class="tech-tag">${esc(t)}<button type="button" onclick="removeTech(${index}, ${ti})">×</button></span>`,
         )
         .join("");
 
@@ -644,14 +693,16 @@ function createProjectEntry(entry, index) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('projects-list').addEventListener('input', function(e) {
-        const target = e.target;
-        if (!isNaN(parseInt(target.dataset.projField))) {
-            const idx = parseInt(target.dataset.projField);
-            state.projects.projects[idx][target.dataset.key] = target.value;
-            scheduleAutoSave();
-        }
-    });
+    document
+        .getElementById("projects-list")
+        .addEventListener("input", function (e) {
+            const target = e.target;
+            if (!isNaN(parseInt(target.dataset.projField))) {
+                const idx = parseInt(target.dataset.projField);
+                state.projects.projects[idx][target.dataset.key] = target.value;
+                scheduleAutoSave();
+            }
+        });
 });
 
 function addProject() {
@@ -706,7 +757,7 @@ function createSkillCategoryEntry(entry, index) {
     const itemTagsHtml = (entry.items || [])
         .map(
             (item, ii) =>
-                `<span class="tech-tag">${esc(item)}<button type="button" onclick="removeSkillItem(${index}, ${ii})">×</button></span>`
+                `<span class="tech-tag">${esc(item)}<button type="button" onclick="removeSkillItem(${index}, ${ii})">×</button></span>`,
         )
         .join("");
 
@@ -746,13 +797,15 @@ function createSkillCategoryEntry(entry, index) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('skills-list').addEventListener('input', function(e) {
-        if (!isNaN(parseInt(e.target.dataset.skillCat))) {
-            const idx = parseInt(e.target.dataset.skillCat);
-            state.skills.skills[idx].category = e.target.value;
-            scheduleAutoSave();
-        }
-    });
+    document
+        .getElementById("skills-list")
+        .addEventListener("input", function (e) {
+            if (!isNaN(parseInt(e.target.dataset.skillCat))) {
+                const idx = parseInt(e.target.dataset.skillCat);
+                state.skills.skills[idx].category = e.target.value;
+                scheduleAutoSave();
+            }
+        });
 });
 
 function addSkillCategory() {
@@ -803,11 +856,20 @@ async function generatePDF() {
     const companyInput = document.getElementById("ai-company");
     const company = companyInput ? companyInput.value.trim() : "";
     if (!company) {
-        toast("Please fill in the Prospective Company field before generating.", true);
+        toast(
+            "Please fill in the Prospective Company field before generating.",
+            true,
+        );
         // Switch to tailoring tab so the user sees the field
-        document.querySelectorAll("#sidebar button").forEach((b) => b.classList.remove("active"));
-        document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
-        const tailorBtn = document.querySelector("#sidebar button[data-tab='tailoring']");
+        document
+            .querySelectorAll("#sidebar button")
+            .forEach((b) => b.classList.remove("active"));
+        document
+            .querySelectorAll(".section")
+            .forEach((s) => s.classList.remove("active"));
+        const tailorBtn = document.querySelector(
+            "#sidebar button[data-tab='tailoring']",
+        );
         if (tailorBtn) tailorBtn.classList.add("active");
         document.getElementById("section-tailoring").classList.add("active");
         if (companyInput) companyInput.focus();
@@ -854,7 +916,9 @@ async function generatePDF() {
 // PDF.js Preview Rendering
 // ---------------------------------------------------------------------------
 async function renderPDFPreview(blob) {
-    const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs");
+    const pdfjsLib = await import(
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs"
+    );
     pdfjsLib.GlobalWorkerOptions.workerSrc =
         "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
 
@@ -893,7 +957,8 @@ async function renderPDFPreview(blob) {
 }
 
 function updatePageIndicator() {
-    document.getElementById("page-indicator").textContent = `${currentPage} / ${totalPages}`;
+    document.getElementById("page-indicator").textContent =
+        `${currentPage} / ${totalPages}`;
 }
 
 function prevPage() {
@@ -957,7 +1022,7 @@ async function saveToBackend(isAutoSave) {
         updateUnsavedChangesWarning();
         updateLastSavedIndicator();
 
-        if (isAutoSave && localStorage.getItem('resume-save-mode') === 'auto') {
+        if (isAutoSave && localStorage.getItem("resume-save-mode") === "auto") {
             showTopNotification("AUTO-SAVED");
         } else if (!isAutoSave) {
             toast("SAVED TO BACKEND");
@@ -993,7 +1058,10 @@ function handlePipelineEvent(event) {
         1: { pct: 10, label: "Stage 1/5: Analyzing job description..." },
         2: { pct: 30, label: "Stage 2/5: Matching resume to requirements..." },
         3: { pct: 55, label: "Stage 3/5: Tailoring resume sections..." },
-        35: { pct: 75, label: "Stage 3.5/5: Building keyword mapping matrix..." },
+        35: {
+            pct: 75,
+            label: "Stage 3.5/5: Building keyword mapping matrix...",
+        },
         4: { pct: 90, label: "Stage 4/5: Validating output..." },
     };
 
@@ -1010,20 +1078,21 @@ function handlePipelineEvent(event) {
 
     if (event.status === "complete") {
         const info = stageMap[event.stage];
-        if (info) updateProgress(info.pct, (info.label.replace("...", "") + " done"));
+        if (info)
+            updateProgress(info.pct, info.label.replace("...", "") + " done");
     }
 }
 
 function applyTailoredData(data, isSkip) {
     if (isSkip) {
-        const relScore = data.relevance || 'N/A';
+        const relScore = data.relevance || "N/A";
         lastAiResultsHTML = `
             <div style="width:100%; text-align:left;">
                 <div style="font-size:11px; text-transform:uppercase; margin-bottom:0.5rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
                     <span style="color:var(--fg); font-weight:bold;">AI TAILORING — SKIPPED (LOW MATCH)</span>
                     <span style="color:#e74c3c; font-weight:bold; float:right;">JD: ${relScore}/10</span>
                 </div>
-                ${data.relevance_analysis ? `<div style="font-size:11px; color:var(--muted); line-height:1.6;">${esc(data.relevance_analysis)}</div>` : ''}
+                ${data.relevance_analysis ? `<div style="font-size:11px; color:var(--muted); line-height:1.6;">${esc(data.relevance_analysis)}</div>` : ""}
             </div>`;
         showPreviewTabs();
         switchPreviewTab("ai");
@@ -1034,34 +1103,48 @@ function applyTailoredData(data, isSkip) {
     pendingTailored = {
         profile: data.profile || null,
         experience: data.experience || null,
-        projects: data.projects || null
+        projects: data.projects || null,
     };
 
     // Compute diff: original snapshot vs pending tailored
     const beforeStr = JSON.stringify(originalSnapshot, null, 2);
     const afterStr = JSON.stringify(pendingTailored, null, 2);
 
-    let diffHtml = "";
+    let diffHtml;
     if (window.Diff) {
         const diff = Diff.diffWords(beforeStr, afterStr);
-        diffHtml = diff.map(part => {
-            let style = part.added ? "color: #2ecc71; font-weight: bold; background: rgba(46, 204, 113, 0.1);" : part.removed ? "color: #e74c3c; text-decoration: line-through; background: rgba(231, 76, 60, 0.1);" : "color: #888;";
-            return `<span style="${style}">${esc(part.value)}</span>`;
-        }).join("");
+        diffHtml = diff
+            .map((part) => {
+                let style = part.added
+                    ? "color: #2ecc71; font-weight: bold; background: rgba(46, 204, 113, 0.1);"
+                    : part.removed
+                      ? "color: #e74c3c; text-decoration: line-through; background: rgba(231, 76, 60, 0.1);"
+                      : "color: #888;";
+                return `<span style="${style}">${esc(part.value)}</span>`;
+            })
+            .join("");
     } else {
         diffHtml = `<span style="color: #f1c40f">Diff library failed to load.</span>`;
     }
 
-    const relScore = data.relevance || 'N/A';
-    const relColor = typeof relScore === 'number' && relScore >= 7 ? '#2ecc71' : typeof relScore === 'number' && relScore >= 4 ? '#f1c40f' : '#e74c3c';
+    const relScore = data.relevance || "N/A";
+    const relColor =
+        typeof relScore === "number" && relScore >= 7
+            ? "#2ecc71"
+            : typeof relScore === "number" && relScore >= 4
+              ? "#f1c40f"
+              : "#e74c3c";
 
     let evalHtml = "";
-    if (data.eval_scores && typeof data.eval_scores === 'object') {
+    if (data.eval_scores && typeof data.eval_scores === "object") {
         const es = data.eval_scores;
         const formatVal = (v) => {
             if (Array.isArray(v)) return v.length === 0 ? "none" : v.join(", ");
             if (v && typeof v === "object") return JSON.stringify(v);
-            if (typeof v === "number") return (v <= 1 && v >= 0) ? (v * 100).toFixed(0) + "%" : String(v);
+            if (typeof v === "number")
+                return v <= 1 && v >= 0
+                    ? (v * 100).toFixed(0) + "%"
+                    : String(v);
             return String(v);
         };
         const rows = [
@@ -1083,14 +1166,13 @@ function applyTailoredData(data, isSkip) {
         </div>`;
     }
 
-    const hasPending = pendingTailored !== null;
     lastAiResultsHTML = `
         <div style="width: 100%; height: 100%; display: flex; flex-direction: column; text-align: left;">
             <div style="font-size: 11px; text-transform: uppercase; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <span style="color: var(--fg); font-weight: bold;">AI TAILORING RESULTS — REVIEW BEFORE APPLYING</span>
                 <span style="color: ${relColor}; font-weight: bold; padding: 2px 6px; border: 1px solid ${relColor};">JD: ${relScore}/10</span>
             </div>
-            ${data.relevance_analysis ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border); line-height: 1.6;">${esc(data.relevance_analysis)}</div>` : ''}
+            ${data.relevance_analysis ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--border); line-height: 1.6;">${esc(data.relevance_analysis)}</div>` : ""}
             ${evalHtml}
             ${renderTimingHtml(data.timing)}
             <div style="font-size: 11px; text-transform: uppercase; color: var(--fg); margin-bottom: 0.5rem;">DIFF CHANGES:</div>
@@ -1099,7 +1181,7 @@ function applyTailoredData(data, isSkip) {
                 <div style="position: sticky; bottom: 0; display: flex; gap: 8px; padding: 8px; background: linear-gradient(transparent, var(--bg) 30%); margin-top: -2rem;">
                     <button onclick="applyPendingChanges()" style="flex: 1; padding: 8px; background: #2ecc71; color: #000; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: bold; text-transform: uppercase;">Apply Changes</button>
                     <button onclick="discardPendingChanges()" style="flex: 1; padding: 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;">Discard</button>
-                    <button onclick="resetToOriginal()" style="padding: 8px 12px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;" ${!originalSnapshot ? 'disabled' : ''}>Reset</button>
+                    <button onclick="resetToOriginal()" style="padding: 8px 12px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;" ${!originalSnapshot ? "disabled" : ""}>Reset</button>
                 </div>
             </div>
         </div>`;
@@ -1110,8 +1192,10 @@ function applyTailoredData(data, isSkip) {
 
 function applyPendingChanges() {
     if (!pendingTailored) return;
-    if (pendingTailored.profile) Object.assign(state.profile, pendingTailored.profile);
-    if (pendingTailored.experience) state.experience = pendingTailored.experience;
+    if (pendingTailored.profile)
+        Object.assign(state.profile, pendingTailored.profile);
+    if (pendingTailored.experience)
+        state.experience = pendingTailored.experience;
     if (pendingTailored.projects) state.projects = pendingTailored.projects;
     pendingTailored = null;
 
@@ -1130,9 +1214,9 @@ function discardPendingChanges() {
 
 function resetToOriginal() {
     if (!originalSnapshot) return;
-    state.profile = JSON.parse(JSON.stringify(originalSnapshot.profile));
-    state.experience = JSON.parse(JSON.stringify(originalSnapshot.experience));
-    state.projects = JSON.parse(JSON.stringify(originalSnapshot.projects));
+    state.profile = structuredClone(originalSnapshot.profile);
+    state.experience = structuredClone(originalSnapshot.experience);
+    state.projects = structuredClone(originalSnapshot.projects);
     originalSnapshot = null;
     pendingTailored = null;
 
@@ -1168,11 +1252,11 @@ async function tailorResume() {
     try {
         const currentData = collectPayload();
         // Save snapshot for Reset functionality
-        originalSnapshot = JSON.parse(JSON.stringify({
+        originalSnapshot = structuredClone({
             profile: currentData.profile,
             experience: currentData.experience,
-            projects: currentData.projects
-        }));
+            projects: currentData.projects,
+        });
         pendingTailored = null;
 
         const payload = {
@@ -1182,9 +1266,9 @@ async function tailorResume() {
                 provider: provider,
                 model: model,
                 base_url: baseUrl,
-                api_key: apiKey
+                api_key: apiKey,
             },
-            data: currentData
+            data: currentData,
         };
 
         const res = await fetch("/api/tailor", {
@@ -1198,7 +1282,9 @@ async function tailorResume() {
             try {
                 const err = await res.json();
                 errorMsg = err.error || errorMsg;
-            } catch { /* ignore JSON parse error — errorMsg stays as fallback */ }
+            } catch {
+                /* ignore JSON parse error — errorMsg stays as fallback */
+            }
             throw new Error(errorMsg);
         }
 
@@ -1317,8 +1403,8 @@ function renderCoverLetterPreview(data) {
         typeof relScore === "number" && relScore >= 7
             ? "#2ecc71"
             : typeof relScore === "number" && relScore >= 4
-            ? "#f1c40f"
-            : "#e74c3c";
+              ? "#f1c40f"
+              : "#e74c3c";
 
     lastCoverLetterHTML = `
         <div class="cl-preview">
@@ -1372,7 +1458,7 @@ function copyCoverLetter() {
     if (!text) return;
     navigator.clipboard.writeText(text).then(
         () => toast("COVER LETTER COPIED"),
-        () => toast("Copy failed — check browser permissions", true)
+        () => toast("Copy failed — check browser permissions", true),
     );
 }
 
@@ -1444,7 +1530,9 @@ ${paragraphs}
 
 async function printClHistoryEntry(entryId) {
     try {
-        const res = await fetch(`/api/cl-history/restore/${entryId}`, { method: "POST" });
+        const res = await fetch(`/api/cl-history/restore/${entryId}`, {
+            method: "POST",
+        });
         if (!res.ok) throw new Error("Failed to load cover letter");
         printCoverLetter(await res.json());
     } catch (e) {
@@ -1459,8 +1547,12 @@ async function generateCoverLetter() {
         return;
     }
 
-    const priorLetter = (document.getElementById("cl-prior").value || "").trim();
-    const extraFacts = (document.getElementById("cl-extra-facts").value || "").trim();
+    const priorLetter = (
+        document.getElementById("cl-prior").value || ""
+    ).trim();
+    const extraFacts = (
+        document.getElementById("cl-extra-facts").value || ""
+    ).trim();
     const tone = document.getElementById("cl-tone").value || "professional";
     const provider = document.getElementById("cl-provider").value;
     const model = document.getElementById("cl-model").value;
@@ -1504,7 +1596,9 @@ async function generateCoverLetter() {
             try {
                 const err = await res.json();
                 errorMsg = err.error || errorMsg;
-            } catch { /* ignore JSON parse error — errorMsg stays as fallback */ }
+            } catch {
+                /* ignore JSON parse error — errorMsg stays as fallback */
+            }
             throw new Error(errorMsg);
         }
 
@@ -1531,19 +1625,27 @@ async function generateCoverLetter() {
                 }
 
                 if (event.status === "error") {
-                    updateClProgress(0, "Error: " + (event.message || "Unknown error"));
+                    updateClProgress(
+                        0,
+                        "Error: " + (event.message || "Unknown error"),
+                    );
                     throw new Error(event.message || "Pipeline error");
                 }
 
                 if (event.status === "in_progress") {
                     const info = stageMap[event.stage];
-                    if (info) updateClProgress(info.pct, event.message || info.label);
+                    if (info)
+                        updateClProgress(info.pct, event.message || info.label);
                     continue;
                 }
 
                 if (event.status === "complete" && event.stage !== "final") {
                     const info = stageMap[event.stage];
-                    if (info) updateClProgress(info.pct, info.label.replace("...", " \u2713"));
+                    if (info)
+                        updateClProgress(
+                            info.pct,
+                            info.label.replace("...", " \u2713"),
+                        );
                     continue;
                 }
 
@@ -1598,7 +1700,9 @@ async function loadClHistoryDashboard(page) {
     const container = document.getElementById("cl-history-dashboard");
     container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">LOADING…</div>`;
     try {
-        const res = await fetch(`/api/cl-history/dashboard?page=${page}&limit=25`);
+        const res = await fetch(
+            `/api/cl-history/dashboard?page=${page}&limit=25`,
+        );
         if (!res.ok) throw new Error("Failed to load cover letter history");
         const data = await res.json();
         renderClHistoryTable(data);
@@ -1614,40 +1718,51 @@ function renderClHistoryTable(data) {
         return;
     }
 
-    const rows = data.entries.map((entry) => {
-        const ts = entry.timestamp || "";
-        const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
-        const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
-        const score = entry.relevance_score;
-        let scoreHtml = "—";
-        if (score !== null && score !== undefined) {
-            const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
-            scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
-        }
-        const timing = entry.timing;
-        let metricsHtml = "—";
-        if (timing && timing.total_tokens != null) {
-            const tok = timing.total_tokens;
-            const secs = timing.elapsed_seconds != null ? timing.elapsed_seconds + "s" : "";
-            const rate = timing.elapsed_seconds && timing.elapsed_seconds > 0
-                ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
-                : "";
-            metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ''}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ''}`;
-        }
-        const pdfLink = `<button type="button" class="btn-secondary btn-small" onclick="printClHistoryEntry('${esc(entry.id)}')" title="Open print/PDF dialog">PDF</button>`;
-        const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
+    const rows = data.entries
+        .map((entry) => {
+            const ts = entry.timestamp || "";
+            const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
+            const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
+            const score = entry.relevance_score;
+            let scoreHtml = "—";
+            if (score !== null && score !== undefined) {
+                const cls =
+                    score >= 7
+                        ? "score-high"
+                        : score >= 4
+                          ? "score-mid"
+                          : "score-low";
+                scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
+            }
+            const timing = entry.timing;
+            let metricsHtml = "—";
+            if (timing && timing.total_tokens != null) {
+                const tok = timing.total_tokens;
+                const secs =
+                    timing.elapsed_seconds != null
+                        ? timing.elapsed_seconds + "s"
+                        : "";
+                const rate =
+                    timing.elapsed_seconds && timing.elapsed_seconds > 0
+                        ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
+                        : "";
+                metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ""}`;
+            }
+            const pdfLink = `<button type="button" class="btn-secondary btn-small" onclick="printClHistoryEntry('${esc(entry.id)}')" title="Open print/PDF dialog">PDF</button>`;
+            const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
 
-        const modelInfo = entry.model && entry.provider
-            ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
-            : entry.model
-                ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
-                : "—";
+            const modelInfo =
+                entry.model && entry.provider
+                    ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
+                    : entry.model
+                      ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
+                      : "—";
 
-        return `<tr>
+            return `<tr>
             <td style="white-space:nowrap;">
                 <div style="line-height:1.05;">
                     ${esc(datePart)}<br>
-                    ${timePart ? '<span style="color:var(--muted); font-size:11px;">' + esc(timePart) + '</span>' : ''}
+                    ${timePart ? '<span style="color:var(--muted); font-size:11px;">' + esc(timePart) + "</span>" : ""}
                 </div>
             </td>
             <td>${esc(entry.company || "—")}</td>
@@ -1662,16 +1777,20 @@ function renderClHistoryTable(data) {
                 <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" onclick="deleteClHistoryEntry('${esc(entry.id)}')">❌</button>
             </td>
         </tr>`;
-    }).join("");
+        })
+        .join("");
 
     const totalPages = Math.ceil(data.total / data.limit);
-    const paginationHtml = totalPages > 1 ? `
+    const paginationHtml =
+        totalPages > 1
+            ? `
         <div class="history-pagination">
             <span>${data.total} total entries</span>
             <button type="button" class="btn-secondary btn-small" onclick="loadClHistoryDashboard(${clHistoryPage - 1})" ${clHistoryPage <= 1 ? "disabled" : ""}>← PREV</button>
             <span style="color:var(--fg);">${clHistoryPage} / ${totalPages}</span>
             <button type="button" class="btn-secondary btn-small" onclick="loadClHistoryDashboard(${clHistoryPage + 1})" ${clHistoryPage >= totalPages ? "disabled" : ""}>NEXT →</button>
-        </div>` : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
+        </div>`
+            : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
 
     container.innerHTML = `
         <div style="overflow-x:auto;">
@@ -1697,15 +1816,21 @@ function renderClHistoryTable(data) {
 
 async function restoreClHistoryEntry(entryId) {
     try {
-        const res = await fetch(`/api/cl-history/restore/${entryId}`, { method: "POST" });
+        const res = await fetch(`/api/cl-history/restore/${entryId}`, {
+            method: "POST",
+        });
         if (!res.ok) throw new Error("Restore failed");
         const data = await res.json();
 
         // Navigate to cover letter tab and show the letter in the preview
         const btns = document.querySelectorAll("#sidebar button");
         btns.forEach((b) => b.classList.remove("active"));
-        document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
-        const clBtn = document.querySelector("#sidebar button[data-tab='coverletter']");
+        document
+            .querySelectorAll(".section")
+            .forEach((s) => s.classList.remove("active"));
+        const clBtn = document.querySelector(
+            "#sidebar button[data-tab='coverletter']",
+        );
         if (clBtn) clBtn.classList.add("active");
         document.getElementById("section-coverletter").classList.add("active");
 
@@ -1722,7 +1847,12 @@ async function restoreClHistoryEntry(entryId) {
 }
 
 async function deleteClHistoryEntry(entryId) {
-    if (!confirm(`Delete cover letter entry "${entryId}"? This cannot be undone.`)) return;
+    if (
+        !confirm(
+            `Delete cover letter entry "${entryId}"? This cannot be undone.`,
+        )
+    )
+        return;
     try {
         const res = await fetch("/api/cl-history/entry", {
             method: "DELETE",
@@ -1758,43 +1888,54 @@ function renderHistoryTable(data) {
         return;
     }
 
-    const rows = data.entries.map((entry) => {
-        const ts = entry.timestamp || "";
-        const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
-        const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
-        const score = entry.match_score;
-        let scoreHtml = "—";
-        if (score !== null && score !== undefined) {
-            const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
-            scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
-        }
-        const hiredClass = entry.hired ? "hired-yes" : "hired-no";
-        const hiredLabel = entry.hired ? "✓ YES" : "✗ NO";
-        const timing = entry.timing;
-        let metricsHtml = "—";
-        if (timing && timing.total_tokens != null) {
-            const tok = timing.total_tokens;
-            const secs = timing.elapsed_seconds != null ? timing.elapsed_seconds + "s" : "";
-            const rate = timing.elapsed_seconds && timing.elapsed_seconds > 0
-                ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
-                : "";
-            metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ''}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ''}`;
-        }
-        const pdfLink = entry.pdf_filename
-            ? `<a href="/api/history/file/${entry.id}/${entry.pdf_filename}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
-            : "—";
-
-        const modelInfo = entry.model && entry.provider
-            ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
-            : entry.model
-                ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
+    const rows = data.entries
+        .map((entry) => {
+            const ts = entry.timestamp || "";
+            const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
+            const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
+            const score = entry.match_score;
+            let scoreHtml = "—";
+            if (score !== null && score !== undefined) {
+                const cls =
+                    score >= 7
+                        ? "score-high"
+                        : score >= 4
+                          ? "score-mid"
+                          : "score-low";
+                scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
+            }
+            const hiredClass = entry.hired ? "hired-yes" : "hired-no";
+            const hiredLabel = entry.hired ? "✓ YES" : "✗ NO";
+            const timing = entry.timing;
+            let metricsHtml = "—";
+            if (timing && timing.total_tokens != null) {
+                const tok = timing.total_tokens;
+                const secs =
+                    timing.elapsed_seconds != null
+                        ? timing.elapsed_seconds + "s"
+                        : "";
+                const rate =
+                    timing.elapsed_seconds && timing.elapsed_seconds > 0
+                        ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
+                        : "";
+                metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ""}`;
+            }
+            const pdfLink = entry.pdf_filename
+                ? `<a href="/api/history/file/${entry.id}/${entry.pdf_filename}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
                 : "—";
 
-        return `<tr>
+            const modelInfo =
+                entry.model && entry.provider
+                    ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
+                    : entry.model
+                      ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
+                      : "—";
+
+            return `<tr>
             <td style="white-space:nowrap;">
                 <div style="line-height:1.05;">
                     ${esc(datePart)}<br>
-                    ${timePart ? '<span style="color:var(--muted); font-size:11px;">' + esc(timePart) + '</span>' : ''}
+                    ${timePart ? '<span style="color:var(--muted); font-size:11px;">' + esc(timePart) + "</span>" : ""}
                 </div>
             </td>
             <td>${esc(entry.company || "—")}</td>
@@ -1809,16 +1950,20 @@ function renderHistoryTable(data) {
                     <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" onclick="deleteHistoryEntry('${esc(entry.id)}')">❌</button>
             </td>
         </tr>`;
-    }).join("");
+        })
+        .join("");
 
     const totalPages = Math.ceil(data.total / data.limit);
-    const paginationHtml = totalPages > 1 ? `
+    const paginationHtml =
+        totalPages > 1
+            ? `
         <div class="history-pagination">
             <span>${data.total} total entries</span>
             <button type="button" class="btn-secondary btn-small" onclick="loadHistoryDashboard(${historyPage - 1})" ${historyPage <= 1 ? "disabled" : ""}>← PREV</button>
             <span style="color:var(--fg);">${historyPage} / ${totalPages}</span>
             <button type="button" class="btn-secondary btn-small" onclick="loadHistoryDashboard(${historyPage + 1})" ${historyPage >= totalPages ? "disabled" : ""}>NEXT →</button>
-        </div>` : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
+        </div>`
+            : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
 
     container.innerHTML = `
         <div style="overflow-x:auto;">
@@ -1844,7 +1989,9 @@ function renderHistoryTable(data) {
 
 async function restoreHistoryEntry(entryId) {
     try {
-        const res = await fetch(`/api/history/restore/${entryId}`, { method: "POST" });
+        const res = await fetch(`/api/history/restore/${entryId}`, {
+            method: "POST",
+        });
         if (!res.ok) throw new Error("Restore failed");
         const data = await res.json();
 
@@ -1866,8 +2013,12 @@ async function restoreHistoryEntry(entryId) {
         // Switch to profile tab
         const btns = document.querySelectorAll("#sidebar button");
         btns.forEach((b) => b.classList.remove("active"));
-        document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
-        const profileBtn = document.querySelector("#sidebar button[data-tab='profile']");
+        document
+            .querySelectorAll(".section")
+            .forEach((s) => s.classList.remove("active"));
+        const profileBtn = document.querySelector(
+            "#sidebar button[data-tab='profile']",
+        );
         if (profileBtn) profileBtn.classList.add("active");
         document.getElementById("section-profile").classList.add("active");
 
@@ -1878,7 +2029,8 @@ async function restoreHistoryEntry(entryId) {
 }
 
 async function deleteHistoryEntry(entryId) {
-    if (!confirm(`Delete history entry "${entryId}"? This cannot be undone.`)) return;
+    if (!confirm(`Delete history entry "${entryId}"? This cannot be undone.`))
+        return;
     try {
         const res = await fetch("/api/history/entry", {
             method: "DELETE",
@@ -1905,7 +2057,10 @@ async function toggleHired(entryId, currentVal, cellEl) {
         // Update cell in-place without a full reload
         cellEl.className = newVal ? "hired-yes" : "hired-no";
         cellEl.textContent = newVal ? "✓ YES" : "✗ NO";
-        cellEl.setAttribute("onclick", `toggleHired('${entryId}', ${newVal}, this)`);
+        cellEl.setAttribute(
+            "onclick",
+            `toggleHired('${entryId}', ${newVal}, this)`,
+        );
     } catch (e) {
         toast(e.message, true);
     }
@@ -1922,7 +2077,9 @@ async function loadStatsDashboard() {
     const container = document.getElementById("stats-dashboard");
     container.innerHTML = `<div class="preview-empty" style="padding:2rem 0;">LOADING...</div>`;
     try {
-        const res = await fetch(`/api/history/stats?period=${statsPeriod}&type=${statsType}`);
+        const res = await fetch(
+            `/api/history/stats?period=${statsPeriod}&type=${statsType}`,
+        );
         if (!res.ok) throw new Error("Failed to load stats");
         renderStatsDashboard(await res.json());
     } catch (e) {
@@ -1932,19 +2089,30 @@ async function loadStatsDashboard() {
 
 function renderStatsDashboard(data) {
     const container = document.getElementById("stats-dashboard");
-    const hitRate = data.submission_count > 0
-        ? Math.round((data.hired_count / data.submission_count) * 100)
-        : 0;
+    const hitRate =
+        data.submission_count > 0
+            ? Math.round((data.hired_count / data.submission_count) * 100)
+            : 0;
 
-    const periodBtns = ["weekly", "monthly", "annual"].map(p =>
-        `<button class="btn-secondary btn-small stats-toggle${statsPeriod === p ? " active" : ""}"
-                 onclick="setStatsPeriod('${p}')">${p.toUpperCase()}</button>`
-    ).join("");
+    const periodBtns = ["weekly", "monthly", "annual"]
+        .map(
+            (p) =>
+                `<button class="btn-secondary btn-small stats-toggle${statsPeriod === p ? " active" : ""}"
+                 onclick="setStatsPeriod('${p}')">${p.toUpperCase()}</button>`,
+        )
+        .join("");
 
-    const typeBtns = [["all", "ALL"], ["resume", "RESUMES"], ["cover_letter", "COVER LETTERS"]].map(([val, label]) =>
-        `<button class="btn-secondary btn-small stats-toggle${statsType === val ? " active" : ""}"
-                 onclick="setStatsType('${val}')">${label}</button>`
-    ).join("");
+    const typeBtns = [
+        ["all", "ALL"],
+        ["resume", "RESUMES"],
+        ["cover_letter", "COVER LETTERS"],
+    ]
+        .map(
+            ([val, label]) =>
+                `<button class="btn-secondary btn-small stats-toggle${statsType === val ? " active" : ""}"
+                 onclick="setStatsType('${val}')">${label}</button>`,
+        )
+        .join("");
 
     container.innerHTML = `
         <div class="stats-controls">
@@ -1959,7 +2127,10 @@ function renderStatsDashboard(data) {
         </div>
         <div class="stats-chart-wrap"><canvas id="stats-chart"></canvas></div>`;
 
-    if (statsChart) { statsChart.destroy(); statsChart = null; }
+    if (statsChart) {
+        statsChart.destroy();
+        statsChart = null;
+    }
 
     if (data.series.length === 0) {
         document.querySelector(".stats-chart-wrap").innerHTML =
@@ -1967,94 +2138,125 @@ function renderStatsDashboard(data) {
         return;
     }
 
-    statsChart = new Chart(document.getElementById("stats-chart").getContext("2d"), {
-        data: {
-            labels: data.series.map(s => s.label),
-            datasets: [
-                {
-                    type: "bar",
-                    label: "Total",
-                    data: data.series.map(s => s.total),
-                    backgroundColor: "rgba(255,255,255,0.12)",
-                    borderColor: "rgba(255,255,255,0.35)",
-                    borderWidth: 1,
+    statsChart = new Chart(
+        document.getElementById("stats-chart").getContext("2d"),
+        {
+            data: {
+                labels: data.series.map((s) => s.label),
+                datasets: [
+                    {
+                        type: "bar",
+                        label: "Total",
+                        data: data.series.map((s) => s.total),
+                        backgroundColor: "rgba(255,255,255,0.12)",
+                        borderColor: "rgba(255,255,255,0.35)",
+                        borderWidth: 1,
+                    },
+                    {
+                        type: "line",
+                        label: "Hired",
+                        data: data.series.map((s) => s.hired),
+                        borderColor: "#fff",
+                        backgroundColor: "transparent",
+                        pointBackgroundColor: "#fff",
+                        pointRadius: 4,
+                        tension: 0.35,
+                        borderWidth: 2,
+                    },
+                    {
+                        type: "line",
+                        label: "Avg tok/s",
+                        data: data.series.map((s) => s.avg_tokens_per_sec),
+                        borderColor: "#f1c40f",
+                        backgroundColor: "transparent",
+                        pointBackgroundColor: "#f1c40f",
+                        pointRadius: 4,
+                        borderDash: [4, 3],
+                        tension: 0.35,
+                        borderWidth: 2,
+                        yAxisID: "y1",
+                        spanGaps: true,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: "#888",
+                            font: { family: "JetBrains Mono", size: 11 },
+                        },
+                    },
+                    tooltip: {
+                        backgroundColor: "#111",
+                        titleColor: "#fff",
+                        bodyColor: "#888",
+                        borderColor: "#333",
+                        borderWidth: 1,
+                        callbacks: {
+                            afterBody: (items) => {
+                                const idx = items[0].dataIndex;
+                                const s = data.series[idx];
+                                const lines = [`Pending: ${s.pending}`];
+                                if (s.avg_elapsed_seconds != null) {
+                                    lines.push(
+                                        `Avg time: ${formatDuration(s.avg_elapsed_seconds)}`,
+                                    );
+                                }
+                                return lines;
+                            },
+                        },
+                    },
                 },
-                {
-                    type: "line",
-                    label: "Hired",
-                    data: data.series.map(s => s.hired),
-                    borderColor: "#fff",
-                    backgroundColor: "transparent",
-                    pointBackgroundColor: "#fff",
-                    pointRadius: 4,
-                    tension: 0.35,
-                    borderWidth: 2,
-                },
-                {
-                    type: "line",
-                    label: "Avg tok/s",
-                    data: data.series.map(s => s.avg_tokens_per_sec),
-                    borderColor: "#f1c40f",
-                    backgroundColor: "transparent",
-                    pointBackgroundColor: "#f1c40f",
-                    pointRadius: 4,
-                    borderDash: [4, 3],
-                    tension: 0.35,
-                    borderWidth: 2,
-                    yAxisID: "y1",
-                    spanGaps: true,
-                },
-            ],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: "#888", font: { family: "JetBrains Mono", size: 11 } } },
-                tooltip: {
-                    backgroundColor: "#111",
-                    titleColor: "#fff",
-                    bodyColor: "#888",
-                    borderColor: "#333",
-                    borderWidth: 1,
-                    callbacks: {
-                        afterBody: (items) => {
-                            const idx = items[0].dataIndex;
-                            const s = data.series[idx];
-                            const lines = [`Pending: ${s.pending}`];
-                            if (s.avg_elapsed_seconds != null) {
-                                lines.push(`Avg time: ${formatDuration(s.avg_elapsed_seconds)}`);
-                            }
-                            return lines;
+                scales: {
+                    x: {
+                        ticks: {
+                            color: "#888",
+                            font: { family: "JetBrains Mono", size: 10 },
+                        },
+                        grid: { color: "#1a1a1a" },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        position: "left",
+                        ticks: {
+                            color: "#888",
+                            font: { family: "JetBrains Mono", size: 10 },
+                            precision: 0,
+                        },
+                        grid: { color: "#1a1a1a" },
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: "right",
+                        ticks: {
+                            color: "#f1c40f",
+                            font: { family: "JetBrains Mono", size: 10 },
+                        },
+                        grid: { drawOnChartArea: false },
+                        title: {
+                            display: true,
+                            text: "tok/s",
+                            color: "#f1c40f",
+                            font: { family: "JetBrains Mono", size: 10 },
                         },
                     },
                 },
             },
-            scales: {
-                x: {
-                    ticks: { color: "#888", font: { family: "JetBrains Mono", size: 10 } },
-                    grid: { color: "#1a1a1a" },
-                },
-                y: {
-                    beginAtZero: true,
-                    position: "left",
-                    ticks: { color: "#888", font: { family: "JetBrains Mono", size: 10 }, precision: 0 },
-                    grid: { color: "#1a1a1a" },
-                },
-                y1: {
-                    beginAtZero: true,
-                    position: "right",
-                    ticks: { color: "#f1c40f", font: { family: "JetBrains Mono", size: 10 } },
-                    grid: { drawOnChartArea: false },
-                    title: { display: true, text: "tok/s", color: "#f1c40f", font: { family: "JetBrains Mono", size: 10 } },
-                },
-            },
         },
-    });
+    );
 }
 
-function setStatsPeriod(p) { statsPeriod = p; loadStatsDashboard(); }
-function setStatsType(t) { statsType = t; loadStatsDashboard(); }
+function setStatsPeriod(p) {
+    statsPeriod = p;
+    loadStatsDashboard();
+}
+function setStatsType(t) {
+    statsType = t;
+    loadStatsDashboard();
+}
 
 // ---------------------------------------------------------------------------
 // Toast

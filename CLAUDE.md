@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 **Start the local server:**
+
 ```bash
 uv run python customizer/server.py
 # or with custom host/port:
@@ -12,14 +13,17 @@ uv run uvicorn customizer.server:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 **Build frontend assets** (required after editing `app.js` or `style.css`):
+
 ```bash
 npm run build          # minifies JS + CSS
 npm run build:js       # JS only
 npm run build:css      # CSS only
 ```
+
 The server serves `app.min.js` and `style.min.css` — always rebuild after frontend edits, then hard-refresh (Ctrl+Shift+R).
 
 **Lint:**
+
 ```bash
 npm run lint           # runs eslint + stylelint + ruff
 ruff check .           # Python only
@@ -28,6 +32,7 @@ npm run lint:css       # CSS only
 ```
 
 **Render resume manually (no UI):**
+
 ```bash
 python3 scripts/render_resume.py
 pdflatex -interaction=nonstopmode resume.tex
@@ -35,6 +40,7 @@ pdftotext resume.pdf resume.txt   # ATS plain-text fallback
 ```
 
 **Install all dependencies:**
+
 ```bash
 bash install.sh
 ```
@@ -42,12 +48,15 @@ bash install.sh
 ## Architecture
 
 ### Core data flow
+
 ```
 data/*.json  →  templates/resume.tex.j2  →  resume.tex  →  pdflatex  →  resume.pdf
 ```
+
 `data/*.json` is the single source of truth. The Jinja2 LaTeX template injects it. Both CI/CD and the local server use the same rendering path (`scripts/render_resume.py`).
 
 ### Backend (`customizer/`)
+
 - **`server.py`** — FastAPI + Uvicorn entry point; serves the web UI and all API routes
 - **`server_additions.py`** — Additional route handlers (history, stats, skills CRUD)
 - **`pipeline.py`** — 4-stage AI tailoring pipeline (see below)
@@ -57,23 +66,23 @@ data/*.json  →  templates/resume.tex.j2  →  resume.tex  →  pdflatex  →  
 - **`pdf_generator.py`** — Wrapper around `pdflatex` invocation
 
 ### Frontend (`customizer/static/`)
+
 Vanilla JS (ES6+), no framework. Design system: brutalist black-and-white, JetBrains Mono.
-- **`app.js`** — Main entry point (edit this, not `app.min.js`)
-- **`state.js`** — Frontend state management
-- **`api-utils.js`** — Fetch wrappers for backend API calls
-- **`dom-utils.js`** — DOM manipulation helpers
-- **`form-utils.js`** — Form population and collection
+
+- **`app.js`** — Main entry point (edit this, not `app.min.js`). Single self-contained classic script; there are no separate util modules.
 
 PDF preview uses Mozilla `pdf.js` embedded in the browser.
 
 ### AI Tailoring Pipeline (`customizer/pipeline.py`)
-Four stages, each with a distinct cost and responsibility:
+
+Five steps (stages 1–4 plus a Stage 3.5 matrix), each with a distinct cost and responsibility:
 
 | Stage | What it does | LLM? |
-|---|---|---|
+| --- | --- | --- |
 | 1: JD Analysis | Extracts structured requirements from job description text | Yes (temp=0.1) |
 | 2: Match & Score | Deterministic keyword matching; early exit if relevance ≤ 2 | No |
 | 3: Section Tailoring | 3 parallel LLM calls via `asyncio.gather` (profile, experience, projects) | Yes |
+| 3.5: Keyword Mapping | `build_keyword_matrix` — deterministic keyword-to-bullet matrix (SSE stage id `35`) | No |
 | 4: Validate & Assemble | Pydantic validation + immutable field restoration + eval metrics | No |
 
 Uses `instructor` library for structured output with automatic retry on Pydantic validation failures. Streams stage-by-stage progress to the browser via Server-Sent Events (SSE).
@@ -83,6 +92,7 @@ Uses `instructor` library for structured output with automatic retry on Pydantic
 **Eval metrics** computed in Stage 4: `job_alignment_score`, `content_preservation`, `hallucinated_numbers`.
 
 ### CI/CD
+
 `.github/workflows/build-resume.yml` triggers on changes to `data/*.json`, `templates/`, or `scripts/`. Installs Python+Jinja2 → renders LaTeX → compiles via `xu-cheng/latex-action` → creates/updates "latest" GitHub Release with PDF.
 
 ## Wiki (Knowledge Base)
@@ -90,6 +100,7 @@ Uses `instructor` library for structured output with automatic retry on Pydantic
 A persistent LLM-maintained wiki lives at `wiki/`. **Read `wiki/index.md` first** before answering questions about this project — it catalogs all pages. The wiki accumulates knowledge across sessions so it doesn't need to be re-derived each time.
 
 Key files:
+
 - `wiki/SCHEMA.md` — Operating manual: operations (Ingest, Query, Update, Lint), page formats, rules
 - `wiki/index.md` — Page catalog; always read first when querying
 - `wiki/log.md` — Append-only activity log (grep: `grep "^## \[" wiki/log.md | tail -10`)
@@ -112,6 +123,7 @@ Key files:
 ## JSON File Rules
 
 Always write JSON via Python, never with heredocs or the Write tool directly:
+
 ```bash
 python3 -c "import json; data = {...}; open('file.json','w').write(json.dumps(data, indent=2))"
 ```

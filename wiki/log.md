@@ -6,6 +6,23 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-09-08] update | Dependency upgrades, dead code removal, doc sync
+
+Package updates (Python `.venv` + npm majors) plus cleanup pass following a local-LLM review.
+
+- Python: `instructor` 1.16.0, `fastapi`/`starlette`/`uvicorn`/`pydantic` upgraded; `openai` held at 2.54.0 (instructor pins `openai<3`)
+- npm: `eslint` 10.10.0 (added `@eslint/js` + `globals`), `stylelint` 17.15.0, `stylelint-config-standard` 40, `esbuild` 0.28.2
+- Deleted 4 dead JS modules never loaded by `index.html`: `state.js`, `dom-utils.js`, `api-utils.js`, `form-utils.js` (~280 lines)
+- Deleted duplicate `wiki/decisions/2026-07-07_theme-fonts-colors.md` (ADR-009 already consolidated in `decisions/index.md`)
+- `pipeline.py`: corrected `tailor_all_sections` return annotation, bound optional `run_all_metrics`, relabeled a mislabeled Stage 4 banner to Stage 3.5
+- `app.js`: `structuredClone()` for deep clones, removed dead `OLLAMA_MODEL_ALIASES` + `hasPending`, dropped unused `diffHtml` init, stripped 3 stray `pi-lens-ignore` comments added while suppressing pre-existing lint advisories
+- `style.css`: `word-break: break-word` → `overflow-wrap: anywhere`, stylelint color-notation fixes; min assets rebuilt
+- `requirements.txt`: added `ruff` (referenced by `npm run lint` but previously undeclared)
+- Docs: fixed CLAUDE.md stage table (added Stage 3.5) and frontend file map; cleaned `system.md`/`DEVELOPMENT.md` file maps; repaired dead wikilinks in `pipeline.md`/`overview.md`/`decisions/index.md` (dangling `[[2026-07-02_generation-metrics-tracking]]` link, content already inline in ADR-008); bumped `last_updated` across all touched pages
+- Reverted a stray `resume.tex` render artifact (tracked but gitignored placeholder data) left over from local testing
+
+**Flagged, not fixed (out of scope for this pass):** `AGENTS.md` documents `eval-module/` as feeding Stage 4 eval metrics, but the directory does not exist on `main` — the import is wrapped in `try/except` so `HAS_EVAL_METRICS` is silently `False` and eval metrics never run. It exists only on unmerged branches (e.g. `da2eb02`). Also found two pre-existing, unrelated ruff findings not touched by this changeset: an unused `elapsed` local in `pipeline.py`'s `MetricsTracker.track()` (~L333) and unused imports in `scripts/wiki_lint.py`.
+
 ## [2026-07-07] update | Theme Fonts + Color Settings
 
 Added custom theme colors and font choices for UI customization — a new theme modal with 5 color schemes and 4 Google Fonts.

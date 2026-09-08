@@ -1,7 +1,7 @@
 ---
 title: System Architecture
 type: architecture
-last_updated: 2026-07-07
+last_updated: 2026-09-08
 sources: [AGENTS.md, customizer/server.py, .github/workflows/build-resume.yml, customizer/static/app.js]
 ---
 
@@ -10,7 +10,7 @@ sources: [AGENTS.md, customizer/server.py, .github/workflows/build-resume.yml, c
 ## Stack
 
 | Layer | Technology |
-|---|---|
+| --- | --- |
 | Backend | FastAPI + Uvicorn |
 | Templating | Jinja2 (HTML) + Jinja2 (LaTeX) |
 | Frontend | Vanilla JavaScript (ES6+), no framework |
@@ -48,11 +48,7 @@ resume-builder/
 │   │   ├── app.js               # Main frontend (source)
 │   │   ├── app.min.js           # Minified (served by default)
 │   │   ├── style.css            # Styles (source)
-│   │   ├── style.min.css        # Minified (served by default)
-│   │   ├── api-utils.js         # API call helpers
-│   │   ├── dom-utils.js         # DOM manipulation helpers
-│   │   ├── form-utils.js        # Form handling helpers
-│   │   └── state.js             # Frontend state management
+│   │   └── style.min.css        # Minified (served by default)
 │   └── templates/
 │       └── index.html           # Jinja2 HTML template for web UI
 └── .github/workflows/
@@ -73,6 +69,7 @@ GitHub Actions triggers on changes to `data/*.json`, `templates/`, or `scripts/`
 Start with: `python customizer/server.py`
 
 Key UI features:
+
 - Edit all JSON sections visually (forms auto-populated from JSON)
 - "Save to Backend" writes edits to `data/*.json`
 - Real-time PDF preview (pdf.js)
@@ -112,6 +109,7 @@ Then hard-refresh in browser (Ctrl+Shift+R) to see changes.
 ## Edit Protocol
 
 From `AGENTS.md`:
+
 - Read file before editing
 - One logical change per tool call
 - Re-read after edit to verify
@@ -153,18 +151,18 @@ Users can customize the UI appearance via a theme modal (`#theme-modal`), access
 
 ### Color Schemes (5)
 
-| Theme   | Background | Accent    | Vibe              |
-|---|---|---|---|
+| Theme | Background | Accent | Vibe |
+| --- | --- | --- | --- |
 | Default | `#000` / `#fff` | `#000` | Classic black & white |
 | Darkslime | `#0a0a0a` | `#00ff41` | Terminal green on dark |
 | Crimson | `#1a0000` | `#dc2626` | Deep red accent |
-| Ocean   | `#001a2e` | `#0ea5e9` | Ocean blue accent |
-| Sunset  | `#1a1000` | `#f97316` | Warm orange/peach |
+| Ocean | `#001a2e` | `#0ea5e9` | Ocean blue accent |
+| Sunset | `#1a1000` | `#f97316` | Warm orange/peach |
 
 ### Fonts (4)
 
 | Font Family | Style |
-|---|---|
+| --- | --- |
 | JetBrains Mono | Monospace — default |
 | IBM Plex Mono | Monospace — clean, readable |
 | Inter | Sans-serif — modern, geometric |

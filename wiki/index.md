@@ -1,7 +1,7 @@
 ---
 title: Wiki Index
 type: index
-last_updated: 2026-07-07
+last_updated: 2026-09-08
 sources: [wiki/SCHEMA.md, data/profile.json, data/experience.json, data/projects.json, data/skills.json, data/education.json]
 ---
 
