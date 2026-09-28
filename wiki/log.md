@@ -6,6 +6,10 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-09-27] update | Fixed build-resume.yml pdflatex crash (unescaped # in template)
+
+`templates/resume.tex.j2:149`'s "For more projects" link built its URL as `website + '#projects'` via raw Jinja concatenation, bypassing `latex_escape` (used everywhere else in the file, which already maps `#` → `\#`). The literal `#` crashed pdflatex with `Illegal parameter number in definition of \Hy@tempa`, killing PDF generation. Bug was introduced 2026-07-02 (commit `e202b5b`) but only surfaced on 2026-09-27's `monthly_update_sep_2026` CI run because `scripts/render_resume.py` — one of the workflow's trigger paths — changed (reformatting only, no resume content changed that run). Fixed by moving the `#projects` literal outside the Jinja expression so it renders as `\#projects`. Verified by rendering + compiling `resume.tex` locally with `pdflatex`.
+
 ## [2026-09-27] decision | Merged server_additions.py into server.py (ADR-011); fixed history/PDF-save error handling
 
 `ponytail-audit` cleanup pass merged `server_additions.py`'s routes into `server.py` (deleted the file), dropped the unused `"mock"` provider entry and `render_resume.py`'s unused `"seo"` config key, and inlined `_parse_models_ini`. See ADR-011. Separately, `/api/generate`'s history-save path was reordered so PDF-move failures no longer leave orphaned `_meta.json` history entries with no matching PDF (previously an unhandled error path); `history_manager.save_resume_history` was split into `start_resume_history_entry`/`finish_resume_history_entry` to support writing metadata only after the PDF move succeeds, and the move+write is wrapped in one try/except that catches `OSError`/`ValueError`/`TypeError` and `rmtree`s the entry folder on any failure. The same atomicity gap in `save_cover_letter_history` (partial write if it fails between `cover_letter.json` and `_meta.json`) was closed the same way. wiki/architecture/system.md and root `CLAUDE.md` updated to drop the `server_additions.py` reference.
