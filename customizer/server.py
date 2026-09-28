@@ -11,6 +11,8 @@ Usage:
 
 import shutil
 import sys
+from datetime import datetime as dt_obj
+from datetime import timedelta
 from pathlib import Path
 
 # Ensure customizer/ is on sys.path so `from pipeline import ...` works
@@ -55,23 +57,17 @@ templates = Jinja2Templates(directory=CUSTOMIZER_DIR / "templates")
 # ---------------------------------------------------------------------------
 # Serve models.ini to the frontend
 # ---------------------------------------------------------------------------
-def _parse_models_ini(path: Path) -> list[str]:
-    """Parse ~/models.ini and return list of section aliases."""
-    import configparser
-    cfg = configparser.ConfigParser()
-    cfg.read(path)
-    return [s for s in cfg.sections()]
-
-
 @app.get("/api/llama-cpp-models")
 def get_llama_cpp_models():
     """Return available llama.cpp model aliases from ~/models.ini."""
+    import configparser
     import os
     ini_path = Path(os.path.expanduser("~/models.ini"))
+    models = []
     if ini_path.exists():
-        models = _parse_models_ini(ini_path)
-    else:
-        models = []
+        cfg = configparser.ConfigParser()
+        cfg.read(ini_path)
+        models = [s for s in cfg.sections()]
     return {"models": models}
 
 
@@ -133,7 +129,13 @@ async def generate(request: Request):
     )
 
     # Move generated PDF to history folder
-    shutil.move(str(pdf_file), str(pdf_path))
+    try:
+        shutil.move(str(pdf_file), str(pdf_path))
+    except OSError as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to save PDF to history: {str(e)}"},
+        )
 
     # Return PDF with correct filename
     return FileResponse(
@@ -469,11 +471,114 @@ async def cl_history_delete(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Stats Routes (defined in server_additions.py)
+# Stats Routes
 # ---------------------------------------------------------------------------
-from server_additions import add_stats_routes  # noqa: E402
+_PERIOD_WINDOWS = {
+    "weekly": timedelta(days=7),
+    "monthly": timedelta(days=30),
+    "annual": timedelta(days=365),
+}
 
-add_stats_routes(app)
+
+def _scan_entries_with_type(history_dir, entry_type: str) -> list:
+    entries = scan_history_entries(history_dir)
+    for entry in entries:
+        entry["_type"] = entry_type
+    return entries
+
+
+def _aggregate_history(period: str, entry_type: str = "all") -> dict:
+    if period not in _PERIOD_WINDOWS:
+        return {"error": "Invalid period"}
+
+    cutoff = dt_obj.now() - _PERIOD_WINDOWS[period]
+    entries = []
+    if entry_type in ("resume", "all"):
+        entries.extend(_scan_entries_with_type(HISTORY_DIR, "resume"))
+    if entry_type in ("cover_letter", "all"):
+        entries.extend(_scan_entries_with_type(CL_HISTORY_DIR, "cover_letter"))
+
+    timed = []
+    for e in entries:
+        try:
+            ts = dt_obj.fromisoformat(e["timestamp"])
+        except (KeyError, ValueError):
+            continue
+        if ts >= cutoff:
+            timed.append((ts, e))
+
+    timed.sort(key=lambda x: x[0], reverse=True)
+
+    bucketed: dict = {}
+    for ts, e in timed:
+        if period == "annual":
+            key = f"{ts.year}-{ts.month:02d}"
+        elif period == "monthly":
+            key = f"{ts.year}-W{ts.isocalendar()[1]:02d}"
+        else:
+            key = ts.strftime("%Y-%m-%d")
+        bucketed.setdefault(key, []).append(e)
+
+    series = []
+    total_submissions = hired_total = pending_total = 0
+
+    for label in sorted(bucketed.keys()):
+        bucket = bucketed[label]
+        subcnt = len(bucket)
+        hiredcnt = sum(1 for item in bucket if item.get("hired"))
+        pendingcnt = subcnt - hiredcnt
+
+        total_submissions += subcnt
+        hired_total += hiredcnt
+        pending_total += pendingcnt
+
+        rates = []
+        durations = []
+        for item in bucket:
+            timing = item.get("timing")
+            if not timing:
+                continue
+            secs = timing.get("elapsed_seconds")
+            tokens = timing.get("total_tokens")
+            if secs and tokens:
+                rates.append(tokens / secs)
+            if secs:
+                durations.append(secs)
+        avg_tok_per_sec = round(sum(rates) / len(rates), 1) if rates else None
+        avg_elapsed_seconds = round(sum(durations) / len(durations), 1) if durations else None
+
+        series.append({
+            "label": label,
+            "total": subcnt,
+            "hired": hiredcnt,
+            "pending": pendingcnt,
+            "avg_tokens_per_sec": avg_tok_per_sec,
+            "avg_elapsed_seconds": avg_elapsed_seconds,
+        })
+
+    return {
+        "period": period,
+        "type": entry_type,
+        "submission_count": total_submissions,
+        "hired_count": hired_total,
+        "pending_count": pending_total,
+        "series": series,
+    }
+
+
+@app.get("/api/history/stats")
+async def history_stats(period: str = "weekly", type: str = "all"):
+    if period not in _PERIOD_WINDOWS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid period. Use weekly, monthly, or annual."},
+        )
+    if type not in ("resume", "cover_letter", "all"):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid type. Use resume, cover_letter, or all."},
+        )
+    return JSONResponse(_aggregate_history(period, type))
 
 
 if __name__ == "__main__":

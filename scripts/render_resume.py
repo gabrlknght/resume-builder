@@ -149,7 +149,6 @@ def load_all_configs(data_dir: Path) -> dict:
         "skills_data": "skills.json",
         "education_data": "education.json",
         "contact": "contact.json",
-        "seo": "seo.json",
     }
 
     for key, filename in config_files.items():

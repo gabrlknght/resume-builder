@@ -54,7 +54,6 @@ PROVIDER_CONFIGS = {
     "ollama": {"base_url": "http://localhost:11434/v1"},
     "openai": {"base_url": None},  # Native OpenAI API
     "openrouter": {"base_url": "https://openrouter.ai/api/v1"},
-    "mock": {},
 }
 
 # Ollama model alias mapping (short names -> full Ollama model IDs)
