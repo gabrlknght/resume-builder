@@ -6,6 +6,16 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-09-27] decision | Merged server_additions.py into server.py (ADR-011); fixed history/PDF-save error handling
+
+`ponytail-audit` cleanup pass merged `server_additions.py`'s routes into `server.py` (deleted the file), dropped the unused `"mock"` provider entry and `render_resume.py`'s unused `"seo"` config key, and inlined `_parse_models_ini`. See ADR-011. Separately, `/api/generate`'s history-save path was reordered so PDF-move failures no longer leave orphaned `_meta.json` history entries with no matching PDF (previously an unhandled error path); `history_manager.save_resume_history` was split into `start_resume_history_entry`/`finish_resume_history_entry` to support writing metadata only after the PDF move succeeds, and the move+write is wrapped in one try/except that catches `OSError`/`ValueError`/`TypeError` and `rmtree`s the entry folder on any failure. The same atomicity gap in `save_cover_letter_history` (partial write if it fails between `cover_letter.json` and `_meta.json`) was closed the same way. wiki/architecture/system.md and root `CLAUDE.md` updated to drop the `server_additions.py` reference.
+
+**Known pre-existing issues surfaced during review, not fixed in this pass** (multi-round `/code-review` on this branch; deliberately deferred, revisit later):
+- `pdf_generator.py`'s `compile_pdf_from_tex` compiles every request to the same fixed shared path before `/api/generate` moves it into history — concurrent/overlapping requests can race and one request's response/history entry can end up with another request's PDF. Needs per-request temp naming or a lock; out of scope for this pass (file untouched by this branch).
+- History folder naming (`{timestamp-to-the-second}_{safe_name}`) can collide for two concurrent requests with the same profile/candidate name within the same second, since `get_history_folder`'s `mkdir(parents=True, exist_ok=True)` silently no-ops on an existing folder — a second request's data could land in / overwrite the first's. Pre-existing, not introduced by this pass.
+- `finish_resume_history_entry` takes `pdf_path` only to read `.name`, duplicating the naming formula already in `start_resume_history_entry`; minor API smell, not a bug today.
+- `/api/generate`'s call to `finish_resume_history_entry` manually unpacks `incoming_meta` into keyword args instead of forwarding the dict the way `save_cover_letter_history` does; adding a new metadata field means touching three places instead of one.
+
 ## [2026-09-08] update | Merged eval-module onto main; closed remaining ruff findings
 
 Follow-up to the same-day cleanup pass below: resolved the flagged eval-module gap and the two pre-existing ruff findings it left open.

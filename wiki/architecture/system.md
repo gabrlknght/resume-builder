@@ -37,8 +37,7 @@ resume-builder/
 ├── scripts/
 │   └── render_resume.py         # JSON → LaTeX renderer
 ├── customizer/                  # Local web UI
-│   ├── server.py                # FastAPI app entry point
-│   ├── server_additions.py      # Additional routes
+│   ├── server.py                # FastAPI app entry point (history/stats/skills routes merged in here)
 │   ├── pipeline.py              # 5-stage AI tailoring pipeline (1–4, plus 3.5)
 │   ├── config.py                # Settings / env config
 │   ├── data_utils.py            # JSON read/write helpers

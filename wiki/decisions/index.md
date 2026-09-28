@@ -172,3 +172,14 @@ Function was annotated `-> str` but returned `dict`.
   - + `AGENTS.md`'s existing claim that Stage 4 uses the eval module is now accurate — no doc change needed there
   - - The module's `slow`-marked LLM regression tests (`test_golden.py`) still need a live API key and aren't run in this pass
   - - `upstream/main` remains far behind this fork; a future upstream sync is a separate, larger decision not addressed here
+
+## ADR-011: Merged `server_additions.py` into `server.py`
+
+- **Date:** 2026-09-27
+- **Status:** Accepted
+- **Context:** `server_additions.py` held history/stats/skills-CRUD routes as a separate module from `server.py`, a split that no longer served a purpose once the routes were small and stable — it just meant an extra file to keep in sync and an extra import wired up in `server.py`.
+- **Decision:** Moved `add_stats_routes`/`_aggregate_history` and the rest of `server_additions.py` verbatim into `server.py` and deleted the file, as part of a broader dead-code cleanup pass (also dropped the unused `"mock"` provider entry from `PROVIDER_CONFIGS` and the unused `"seo"` key from `render_resume.py`'s `config_files`).
+- **Consequences:**
+  - + One fewer file to track; all HTTP routes now live in `server.py`
+  - + No behavior change — routes, imports, and callers traced end-to-end with no dangling references
+  - - Any external docs or scripts referencing `server_additions.py` by path need updating (wiki/architecture/system.md updated in this pass)

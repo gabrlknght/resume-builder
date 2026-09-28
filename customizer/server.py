@@ -11,6 +11,8 @@ Usage:
 
 import shutil
 import sys
+from datetime import datetime as dt_obj
+from datetime import timedelta
 from pathlib import Path
 
 # Ensure customizer/ is on sys.path so `from pipeline import ...` works
@@ -35,11 +37,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from history_manager import (
     delete_history_entry,
+    finish_resume_history_entry,
     restore_cl_history_entry,
     restore_history_entry,
     save_cover_letter_history,
-    save_resume_history,
     scan_history_entries,
+    start_resume_history_entry,
     update_hired_status,
 )
 from pdf_generator import PDFGenerationError, generate_pdf
@@ -55,23 +58,18 @@ templates = Jinja2Templates(directory=CUSTOMIZER_DIR / "templates")
 # ---------------------------------------------------------------------------
 # Serve models.ini to the frontend
 # ---------------------------------------------------------------------------
-def _parse_models_ini(path: Path) -> list[str]:
-    """Parse ~/models.ini and return list of section aliases."""
-    import configparser
-    cfg = configparser.ConfigParser()
-    cfg.read(path)
-    return [s for s in cfg.sections()]
-
-
 @app.get("/api/llama-cpp-models")
 def get_llama_cpp_models():
     """Return available llama.cpp model aliases from ~/models.ini."""
+    import configparser
     import os
+
     ini_path = Path(os.path.expanduser("~/models.ini"))
+    models = []
     if ini_path.exists():
-        models = _parse_models_ini(ini_path)
-    else:
-        models = []
+        cfg = configparser.ConfigParser()
+        cfg.read(ini_path)
+        models = [s for s in cfg.sections()]
     return {"models": models}
 
 
@@ -83,6 +81,7 @@ async def index(request: Request):
     """Render the customizer page with forms pre-populated from JSON."""
     data = load_all_sections(SECTION_FILES, DATA_DIR)
     import json
+
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -117,23 +116,39 @@ async def generate(request: Request):
     except PDFGenerationError as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-    # Save to history
+    # Reserve a history folder/path, but don't write metadata until the PDF
+    # actually lands there — otherwise a failed move leaves a ghost entry.
     profile = payload.get("profile", {})
     profile_name = profile.get("name", "resume")
-    entry_id, pdf_path = save_resume_history(
-        HISTORY_DIR,
-        payload,
-        profile_name,
-        company=incoming_meta.get("company", ""),
-        job_title=incoming_meta.get("job_title", ""),
-        match_score=incoming_meta.get("match_score"),
-        timing=incoming_meta.get("timing"),
-        model=incoming_meta.get("model", ""),
-        provider=incoming_meta.get("provider", ""),
+    entry_id, hist_folder, pdf_path, entry_now = start_resume_history_entry(
+        HISTORY_DIR, profile_name
     )
 
-    # Move generated PDF to history folder
-    shutil.move(str(pdf_file), str(pdf_path))
+    # Move the PDF into place and write its history metadata as one unit: if
+    # either step fails, wipe the whole (still-uncommitted) hist_folder rather
+    # than leave a partial file or an orphaned PDF with no metadata behind.
+    try:
+        shutil.move(str(pdf_file), str(pdf_path))
+        finish_resume_history_entry(
+            hist_folder=hist_folder,
+            entry_id=entry_id,
+            payload=payload,
+            profile_name=profile_name,
+            pdf_path=pdf_path,
+            now=entry_now,
+            company=incoming_meta.get("company", ""),
+            job_title=incoming_meta.get("job_title", ""),
+            match_score=incoming_meta.get("match_score"),
+            timing=incoming_meta.get("timing"),
+            model=incoming_meta.get("model", ""),
+            provider=incoming_meta.get("provider", ""),
+        )
+    except (OSError, ValueError, TypeError) as e:
+        shutil.rmtree(str(hist_folder), ignore_errors=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to save PDF to history: {str(e)}"},
+        )
 
     # Return PDF with correct filename
     return FileResponse(
@@ -247,9 +262,7 @@ async def tailor(request: Request):
     data = payload.get("data", {})
 
     if not jd.strip():
-        return JSONResponse(
-            status_code=400, content={"error": "Job description is required."}
-        )
+        return JSONResponse(status_code=400, content={"error": "Job description is required."})
 
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
@@ -260,9 +273,7 @@ async def tailor(request: Request):
     # Resolve API key from environment if not provided
     if not api_key:
         env_key = (
-            "OPENROUTER_API_KEY"
-            if provider == "openrouter_meta"
-            else f"{provider.upper()}_API_KEY"
+            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
         )
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
 
@@ -327,9 +338,7 @@ async def cover_letter_endpoint(request: Request):
     data = payload.get("data", {})
 
     if not jd.strip():
-        return JSONResponse(
-            status_code=400, content={"error": "Job description is required."}
-        )
+        return JSONResponse(status_code=400, content={"error": "Job description is required."})
 
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
@@ -340,9 +349,7 @@ async def cover_letter_endpoint(request: Request):
     # Resolve API key from environment if not provided
     if not api_key:
         env_key = (
-            "OPENROUTER_API_KEY"
-            if provider == "openrouter_meta"
-            else f"{provider.upper()}_API_KEY"
+            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
         )
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
 
@@ -406,7 +413,13 @@ async def cl_history_save(request: Request):
     if not cl_data:
         return JSONResponse(status_code=400, content={"error": "cover_letter data required"})
 
-    entry_id = save_cover_letter_history(CL_HISTORY_DIR, cl_data)
+    try:
+        entry_id = save_cover_letter_history(CL_HISTORY_DIR, cl_data)
+    except (OSError, ValueError, TypeError) as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to save cover letter history: {str(e)}"},
+        )
     return {"status": "ok", "id": entry_id}
 
 
@@ -446,9 +459,7 @@ async def cl_history_file(file_path: str):
         return JSONResponse(status_code=400, content={"error": "Invalid path"})
     if not target.exists() or target.suffix != ".txt":
         return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(
-        path=str(target), media_type="text/plain", filename=target.name
-    )
+    return FileResponse(path=str(target), media_type="text/plain", filename=target.name)
 
 
 @app.delete("/api/cl-history/entry")
@@ -469,11 +480,116 @@ async def cl_history_delete(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Stats Routes (defined in server_additions.py)
+# Stats Routes
 # ---------------------------------------------------------------------------
-from server_additions import add_stats_routes  # noqa: E402
+_PERIOD_WINDOWS = {
+    "weekly": timedelta(days=7),
+    "monthly": timedelta(days=30),
+    "annual": timedelta(days=365),
+}
 
-add_stats_routes(app)
+
+def _scan_entries_with_type(history_dir, entry_type: str) -> list:
+    entries = scan_history_entries(history_dir)
+    for entry in entries:
+        entry["_type"] = entry_type
+    return entries
+
+
+def _aggregate_history(period: str, entry_type: str = "all") -> dict:
+    if period not in _PERIOD_WINDOWS:
+        return {"error": "Invalid period"}
+
+    cutoff = dt_obj.now() - _PERIOD_WINDOWS[period]
+    entries = []
+    if entry_type in ("resume", "all"):
+        entries.extend(_scan_entries_with_type(HISTORY_DIR, "resume"))
+    if entry_type in ("cover_letter", "all"):
+        entries.extend(_scan_entries_with_type(CL_HISTORY_DIR, "cover_letter"))
+
+    timed = []
+    for e in entries:
+        try:
+            ts = dt_obj.fromisoformat(e["timestamp"])
+        except (KeyError, ValueError):
+            continue
+        if ts >= cutoff:
+            timed.append((ts, e))
+
+    timed.sort(key=lambda x: x[0], reverse=True)
+
+    bucketed: dict = {}
+    for ts, e in timed:
+        if period == "annual":
+            key = f"{ts.year}-{ts.month:02d}"
+        elif period == "monthly":
+            key = f"{ts.year}-W{ts.isocalendar()[1]:02d}"
+        else:
+            key = ts.strftime("%Y-%m-%d")
+        bucketed.setdefault(key, []).append(e)
+
+    series = []
+    total_submissions = hired_total = pending_total = 0
+
+    for label in sorted(bucketed.keys()):
+        bucket = bucketed[label]
+        subcnt = len(bucket)
+        hiredcnt = sum(1 for item in bucket if item.get("hired"))
+        pendingcnt = subcnt - hiredcnt
+
+        total_submissions += subcnt
+        hired_total += hiredcnt
+        pending_total += pendingcnt
+
+        rates = []
+        durations = []
+        for item in bucket:
+            timing = item.get("timing")
+            if not timing:
+                continue
+            secs = timing.get("elapsed_seconds")
+            tokens = timing.get("total_tokens")
+            if secs and tokens:
+                rates.append(tokens / secs)
+            if secs:
+                durations.append(secs)
+        avg_tok_per_sec = round(sum(rates) / len(rates), 1) if rates else None
+        avg_elapsed_seconds = round(sum(durations) / len(durations), 1) if durations else None
+
+        series.append(
+            {
+                "label": label,
+                "total": subcnt,
+                "hired": hiredcnt,
+                "pending": pendingcnt,
+                "avg_tokens_per_sec": avg_tok_per_sec,
+                "avg_elapsed_seconds": avg_elapsed_seconds,
+            }
+        )
+
+    return {
+        "period": period,
+        "type": entry_type,
+        "submission_count": total_submissions,
+        "hired_count": hired_total,
+        "pending_count": pending_total,
+        "series": series,
+    }
+
+
+@app.get("/api/history/stats")
+async def history_stats(period: str = "weekly", type: str = "all"):
+    if period not in _PERIOD_WINDOWS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid period. Use weekly, monthly, or annual."},
+        )
+    if type not in ("resume", "cover_letter", "all"):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid type. Use resume, cover_letter, or all."},
+        )
+    return JSONResponse(_aggregate_history(period, type))
 
 
 if __name__ == "__main__":
