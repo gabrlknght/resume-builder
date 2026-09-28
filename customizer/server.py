@@ -37,11 +37,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from history_manager import (
     delete_history_entry,
+    finish_resume_history_entry,
     restore_cl_history_entry,
     restore_history_entry,
     save_cover_letter_history,
-    save_resume_history,
     scan_history_entries,
+    start_resume_history_entry,
     update_hired_status,
 )
 from pdf_generator import PDFGenerationError, generate_pdf
@@ -62,6 +63,7 @@ def get_llama_cpp_models():
     """Return available llama.cpp model aliases from ~/models.ini."""
     import configparser
     import os
+
     ini_path = Path(os.path.expanduser("~/models.ini"))
     models = []
     if ini_path.exists():
@@ -79,6 +81,7 @@ async def index(request: Request):
     """Render the customizer page with forms pre-populated from JSON."""
     data = load_all_sections(SECTION_FILES, DATA_DIR)
     import json
+
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -113,25 +116,35 @@ async def generate(request: Request):
     except PDFGenerationError as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-    # Save to history
+    # Reserve a history folder/path, but don't write metadata until the PDF
+    # actually lands there — otherwise a failed move leaves a ghost entry.
     profile = payload.get("profile", {})
     profile_name = profile.get("name", "resume")
-    entry_id, pdf_path = save_resume_history(
-        HISTORY_DIR,
-        payload,
-        profile_name,
-        company=incoming_meta.get("company", ""),
-        job_title=incoming_meta.get("job_title", ""),
-        match_score=incoming_meta.get("match_score"),
-        timing=incoming_meta.get("timing"),
-        model=incoming_meta.get("model", ""),
-        provider=incoming_meta.get("provider", ""),
+    entry_id, hist_folder, pdf_path, entry_now = start_resume_history_entry(
+        HISTORY_DIR, profile_name
     )
 
-    # Move generated PDF to history folder
+    # Move the PDF into place and write its history metadata as one unit: if
+    # either step fails, wipe the whole (still-uncommitted) hist_folder rather
+    # than leave a partial file or an orphaned PDF with no metadata behind.
     try:
         shutil.move(str(pdf_file), str(pdf_path))
-    except OSError as e:
+        finish_resume_history_entry(
+            hist_folder=hist_folder,
+            entry_id=entry_id,
+            payload=payload,
+            profile_name=profile_name,
+            pdf_path=pdf_path,
+            now=entry_now,
+            company=incoming_meta.get("company", ""),
+            job_title=incoming_meta.get("job_title", ""),
+            match_score=incoming_meta.get("match_score"),
+            timing=incoming_meta.get("timing"),
+            model=incoming_meta.get("model", ""),
+            provider=incoming_meta.get("provider", ""),
+        )
+    except (OSError, ValueError, TypeError) as e:
+        shutil.rmtree(str(hist_folder), ignore_errors=True)
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to save PDF to history: {str(e)}"},
@@ -249,9 +262,7 @@ async def tailor(request: Request):
     data = payload.get("data", {})
 
     if not jd.strip():
-        return JSONResponse(
-            status_code=400, content={"error": "Job description is required."}
-        )
+        return JSONResponse(status_code=400, content={"error": "Job description is required."})
 
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
@@ -262,9 +273,7 @@ async def tailor(request: Request):
     # Resolve API key from environment if not provided
     if not api_key:
         env_key = (
-            "OPENROUTER_API_KEY"
-            if provider == "openrouter_meta"
-            else f"{provider.upper()}_API_KEY"
+            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
         )
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
 
@@ -329,9 +338,7 @@ async def cover_letter_endpoint(request: Request):
     data = payload.get("data", {})
 
     if not jd.strip():
-        return JSONResponse(
-            status_code=400, content={"error": "Job description is required."}
-        )
+        return JSONResponse(status_code=400, content={"error": "Job description is required."})
 
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
@@ -342,9 +349,7 @@ async def cover_letter_endpoint(request: Request):
     # Resolve API key from environment if not provided
     if not api_key:
         env_key = (
-            "OPENROUTER_API_KEY"
-            if provider == "openrouter_meta"
-            else f"{provider.upper()}_API_KEY"
+            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
         )
         api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
 
@@ -408,7 +413,13 @@ async def cl_history_save(request: Request):
     if not cl_data:
         return JSONResponse(status_code=400, content={"error": "cover_letter data required"})
 
-    entry_id = save_cover_letter_history(CL_HISTORY_DIR, cl_data)
+    try:
+        entry_id = save_cover_letter_history(CL_HISTORY_DIR, cl_data)
+    except (OSError, ValueError, TypeError) as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to save cover letter history: {str(e)}"},
+        )
     return {"status": "ok", "id": entry_id}
 
 
@@ -448,9 +459,7 @@ async def cl_history_file(file_path: str):
         return JSONResponse(status_code=400, content={"error": "Invalid path"})
     if not target.exists() or target.suffix != ".txt":
         return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(
-        path=str(target), media_type="text/plain", filename=target.name
-    )
+    return FileResponse(path=str(target), media_type="text/plain", filename=target.name)
 
 
 @app.delete("/api/cl-history/entry")
@@ -547,14 +556,16 @@ def _aggregate_history(period: str, entry_type: str = "all") -> dict:
         avg_tok_per_sec = round(sum(rates) / len(rates), 1) if rates else None
         avg_elapsed_seconds = round(sum(durations) / len(durations), 1) if durations else None
 
-        series.append({
-            "label": label,
-            "total": subcnt,
-            "hired": hiredcnt,
-            "pending": pendingcnt,
-            "avg_tokens_per_sec": avg_tok_per_sec,
-            "avg_elapsed_seconds": avg_elapsed_seconds,
-        })
+        series.append(
+            {
+                "label": label,
+                "total": subcnt,
+                "hired": hiredcnt,
+                "pending": pendingcnt,
+                "avg_tokens_per_sec": avg_tok_per_sec,
+                "avg_elapsed_seconds": avg_elapsed_seconds,
+            }
+        )
 
     return {
         "period": period,

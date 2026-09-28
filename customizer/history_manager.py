@@ -36,28 +36,42 @@ def scan_history_entries(history_dir: Path) -> list:
     return entries
 
 
-def save_resume_history(
-    history_dir: Path,
+def start_resume_history_entry(
+    history_dir: Path, profile_name: str
+) -> tuple[str, Path, Path, dt_obj]:
+    """Create the history folder for a resume and compute its paths.
+
+    No metadata is written yet; call finish_resume_history_entry() once the
+    PDF has actually been placed at the returned pdf_path, so a failure in
+    between (e.g. the move) never leaves a history entry with no PDF behind it.
+    Returns (entry_id, hist_folder, pdf_path, now).
+    """
+    safe_name = safe_filename(profile_name)
+    now = dt_obj.now()
+    hist_folder = get_history_folder(history_dir, now, safe_name)
+    ts_str = now.strftime("%Y%m%d_%H%M%S")
+    pdf_path = hist_folder / f"{safe_name}_{ts_str}.pdf"
+    entry_id = str(hist_folder.relative_to(history_dir))
+    return entry_id, hist_folder, pdf_path, now
+
+
+def finish_resume_history_entry(
+    hist_folder: Path,
+    entry_id: str,
     payload: dict,
     profile_name: str,
+    pdf_path: Path,
+    now: dt_obj,
     company: str = "",
     job_title: str = "",
     match_score: Optional[float] = None,
     timing: Optional[dict] = None,
     model: str = "",
     provider: str = "",
-) -> tuple[str, Path]:
-    """Save resume to history with metadata. Returns (entry_id, pdf_path)."""
-    safe_name = safe_filename(profile_name)
-    now = dt_obj.now()
-    hist_folder = get_history_folder(history_dir, now, safe_name)
-
-    # Save resume data snapshot
-    ts_str = now.strftime("%Y%m%d_%H%M%S")
+) -> None:
+    """Write the resume data snapshot and metadata for an already-saved PDF."""
     save_json(hist_folder / "resume_data.json", payload)
 
-    # Save metadata
-    entry_id = str(hist_folder.relative_to(history_dir))
     meta = {
         "id": entry_id,
         "timestamp": now.isoformat(timespec="seconds"),
@@ -66,7 +80,7 @@ def save_resume_history(
         "job_title": job_title,
         "match_score": match_score,
         "hired": False,
-        "pdf_filename": f"{safe_name}_{ts_str}.pdf",
+        "pdf_filename": pdf_path.name,
     }
     if timing is not None:
         meta["timing"] = timing
@@ -75,8 +89,6 @@ def save_resume_history(
     if provider:
         meta["provider"] = provider
     save_json(hist_folder / "_meta.json", meta)
-
-    return entry_id, hist_folder / meta["pdf_filename"]
 
 
 def save_cover_letter_history(
@@ -89,10 +101,6 @@ def save_cover_letter_history(
     into the _meta.json alongside the standard fields.
     """
     candidate_name = cl_data.get("candidate_name", "cover_letter")
-    job_title = cl_data.get("job_title", "")
-    company = cl_data.get("company", "")
-    relevance = cl_data.get("relevance", None)
-
     safe_name = safe_filename(candidate_name)
     now = dt_obj.now()
 
@@ -120,25 +128,36 @@ def save_cover_letter_history(
     )
     plain_text = "\n".join(parts)
 
-    # Save files
+    try:
+        _write_cover_letter_files(folder, entry_id, cl_data, plain_text, now)
+    except (OSError, ValueError, TypeError):
+        # Don't leave a partially-written entry (e.g. only cover_letter.json,
+        # no _meta.json) that scan_history_entries() would silently ignore.
+        shutil.rmtree(str(folder), ignore_errors=True)
+        raise
+
+    return entry_id
+
+
+def _write_cover_letter_files(
+    folder: Path, entry_id: str, cl_data: dict, plain_text: str, now: dt_obj
+) -> None:
     save_json(folder / "cover_letter.json", cl_data)
     (folder / "cover_letter.txt").write_text(plain_text, encoding="utf-8")
 
     meta = {
         "id": entry_id,
         "timestamp": now.isoformat(timespec="seconds"),
-        "candidate_name": candidate_name,
-        "company": company,
-        "job_title": job_title,
-        "relevance_score": relevance,
+        "candidate_name": cl_data.get("candidate_name", "cover_letter"),
+        "company": cl_data.get("company", ""),
+        "job_title": cl_data.get("job_title", ""),
+        "relevance_score": cl_data.get("relevance", None),
     }
     # Merge extra metadata (timing, model, provider)
     for key in ("timing", "model", "provider"):
         if key in cl_data and cl_data[key] is not None:
             meta[key] = cl_data[key]
     save_json(folder / "_meta.json", meta)
-
-    return entry_id
 
 
 def restore_history_entry(history_dir: Path, entry_id: str) -> dict:

@@ -57,8 +57,7 @@ data/*.json  →  templates/resume.tex.j2  →  resume.tex  →  pdflatex  →  
 
 ### Backend (`customizer/`)
 
-- **`server.py`** — FastAPI + Uvicorn entry point; serves the web UI and all API routes
-- **`server_additions.py`** — Additional route handlers (history, stats, skills CRUD)
+- **`server.py`** — FastAPI + Uvicorn entry point; serves the web UI and all API routes (including history, stats, skills CRUD)
 - **`pipeline.py`** — 4-stage AI tailoring pipeline (see below)
 - **`config.py`** — Settings and environment variable config (`<PROVIDER>_API_KEY` env vars)
 - **`data_utils.py`** — JSON read/write helpers for `data/*.json`

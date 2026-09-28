@@ -28,7 +28,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 DATA_DIR = PROJECT_ROOT / "data"
 TEMPLATE_DIR = PROJECT_ROOT / "templates"
 TEMPLATE_FILE = "resume.tex.j2"
-OUTPUT_FILE = "resume.tex" # Output to root of the project
+OUTPUT_FILE = "resume.tex"  # Output to root of the project
 
 
 def latex_escape(text: str) -> str:
@@ -102,10 +102,7 @@ def format_duration(start_date: str, end_date: str | None = None) -> str:
     Format duration string from startDate and endDate.
     e.g., "Jan 2025 – Present" or "May 2022 – Aug 2024"
     """
-    months = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    ]
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     def format_date(date_str: str) -> str:
         parts = date_str.split("-")
