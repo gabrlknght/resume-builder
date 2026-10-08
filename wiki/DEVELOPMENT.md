@@ -1,8 +1,8 @@
 ---
 title: Development Guide
 type: synthesis
-last_updated: 2026-09-08
-sources: [AGENTS.md, CLAUDE.md, customizer/server.py, customizer/pipeline.py]
+last_updated: 2026-10-07
+sources: [AGENTS.md, CLAUDE.md, README.md, requirements.txt, customizer/server.py, customizer/pipeline.py]
 ---
 
 # Development Guide
@@ -18,11 +18,12 @@ npm install
 # 2. Build minified assets
 npm run build
 
-# 3. Install Python deps
-pip install jinja2 fastapi uvicorn instructor
+# 3. Install Python deps into the project .venv (plain `pip install` fails on
+#    Ubuntu with "externally-managed-environment" — PEP 668)
+uv pip install -r requirements.txt
 
 # 4. Start the local server
-python customizer/server.py
+uv run python customizer/server.py
 # or
 uv run uvicorn customizer.server:app --host 0.0.0.0 --port 8080 --reload
 ```
