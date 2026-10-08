@@ -1,8 +1,8 @@
-jinja2
-fastapi
-uvicorn[standard]
-openai
-pydantic
-instructor>=1.7.0
-ruff  # dev: `npm run lint` / `make lint` runs `ruff check .`
-pytest  # dev: runs eval-module/eval test suite
+jinja2==3.1.6
+fastapi==0.142.4
+uvicorn[standard]==0.54.0
+openai==2.54.0  # held <3: instructor 1.17.0 caps jiter <0.15, openai 3.x needs >=0.16
+pydantic==2.13.5
+instructor==1.17.0
+ruff==0.16.10  # dev: `npm run lint` / `make lint` runs `ruff check .`
+pytest==9.1.1  # dev: runs eval-module/eval test suite

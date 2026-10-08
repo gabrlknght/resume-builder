@@ -489,6 +489,7 @@ function createExperienceEntry(entry, index) {
 
     div.innerHTML = `
         <div class="array-entry-header">
+            <span class="drag-handle" title="Drag to reorder">⠿</span>
             <span class="array-entry-number">#${index + 1}</span>
             <button type="button" class="btn-danger btn-small" onclick="removeExperience(${index})">REMOVE</button>
         </div>
@@ -522,6 +523,8 @@ function createExperienceEntry(entry, index) {
             <button type="button" class="btn-secondary btn-small" onclick="addDetail(${index})">+ ADD BULLET</button>
         </div>
     `;
+
+    setupDragReorder(div, index, () => state.experience.experience, renderExperience);
 
     return div;
 }
