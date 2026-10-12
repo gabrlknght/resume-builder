@@ -202,5 +202,23 @@ Function was annotated `-> str` but returned `dict`.
   - + Cross-site writes, DNS rebinding reads, and the stored-XSS chain are closed without adding auth
   - + PDF builds work, and the LLM no longer receives phone, website, or social URLs
   - - Accessing the server by LAN IP or a custom hostname now needs `RESUME_ALLOWED_HOSTS`
-  - - No CSP yet; `app.js` still has many `innerHTML` writes that rely on `esc()` being applied consistently
+  - - No CSP yet (added in ADR-013); `app.js` still has many `innerHTML` writes that rely on `esc()` being applied consistently
   - - The pdf.js worker script loaded via `workerSrc` is not covered by SRI
+
+## ADR-013: Strict script-src CSP; inline handlers replaced by a `data-action` dispatcher
+
+- **Date:** 2026-10-12
+- **Status:** Accepted
+- **Context:** ADR-012 deferred the CSP because `index.html` had 21 inline `onclick` attributes and three inline `<script>` blocks, and `app.js` generated 28 more `onclick` attributes in HTML strings. Any CSP that allows those needs `'unsafe-inline'` in `script-src`, which defeats its purpose. The generated handlers were also injectable: `onclick="restoreHistoryEntry('${esc(entry.id)}')"` decodes HTML entities before the JS runs, so a `'` in an entry ID broke out into script. `esc()` itself (the `textContent`→`innerHTML` trick) never escaped quotes, so every `esc()` in a quoted attribute was breakable.
+- **Decision:**
+  - Clickable elements declare `data-action="fnName"` and optional `data-args="[json]"`. One delegated listener at the end of `app.js` looks the name up in an explicit `ACTIONS` allowlist and calls it with `this` bound to the element (same as inline handlers; `toggleHired` relies on this). String args are written as `esc(JSON.stringify([...]))`.
+  - `esc()` now escapes `& < > " '`, so it is safe in both text and quoted attributes.
+  - The settings-modal and theme/font-switcher inline scripts moved verbatim into `app.js`. Server data moved to `<script type="application/json" id="initial-data">`, which is inert under CSP; `app.js` reads it with `JSON.parse`.
+  - `server.py` sends the CSP on `/` only: `script-src 'self'` plus the two CDNs, `worker-src` adds `blob:` (pdf.js wraps its cross-origin worker in a blob URL), `connect-src` allows `localhost`/`127.0.0.1` on any port for the browser-side Ollama model list, `style-src` keeps `'unsafe-inline'` for `style=""` attributes, `img-src` allows any `https:` for user-supplied avatar/logo URLs, `object-src 'none'`, `frame-ancestors 'none'`.
+  - pdf.js is called with `isEvalSupported: false` so it doesn't probe the forbidden `eval`.
+- **Consequences:**
+  - + Injected markup can no longer execute script: inline handlers, inline scripts, and `eval` are blocked
+  - + Verified in headless Chromium against a running server, with writes mocked or blocked: no CSP violations; settings and theme modals, add/remove with numeric args, history and stats actions with string args, PDF render through pdf.js in a real Web Worker
+  - - New buttons must use `data-action` and be added to `ACTIONS`; an `onclick=` attribute will silently do nothing
+  - - A remote (non-localhost) Ollama base URL needs its origin added to `connect-src`
+  - - `style-src 'unsafe-inline'` remains; CSS injection is still possible where `esc()` is skipped

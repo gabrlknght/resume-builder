@@ -6,6 +6,10 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-10-12] decision | Strict CSP and data-action dispatcher (ADR-013)
+
+Added a `script-src 'self'` CSP on `/`. To get there: replaced 49 inline `onclick` handlers (21 in `index.html`, 28 generated in `app.js`) with `data-action`/`data-args` attributes and a delegated `ACTIONS` allowlist; moved the settings and theme inline scripts into `app.js`; moved server data into a `type="application/json"` block. Fixed `esc()` to escape quotes, which closes an attribute-injection hole in the old history-table handlers. Verified with ESLint, `ruff check`, and a Playwright run in headless Chromium against a live server, with all writes mocked or blocked: zero CSP violations, and every handler type and pdf.js (in a blob Web Worker) worked.
+
 ## [2026-10-12] decision | Security hardening redo: local-only request guard (ADR-012)
 
 Reviewed an uncommitted security pass by a local model and reverted its code changes: the new pdflatex invocation failed every build, and the PIN gate, auto-cleanup, PII redaction, and payload filter were broken or ineffective, while cross-site requests to the unauthenticated localhost server were not addressed. Redid it as ADR-012: Host/Origin guard middleware, `<` escaping in the embedded `data_json`, exact-shape validation on `/api/save`, `is_within()` path checks, explicit `-no-shell-escape`, contact fields stripped from the profile sent to the LLM, and SRI with Chart.js pinned to 4.5.1. Kept the `latex_escape` additions in `templates/resume.tex.j2`. Verified with a real PDF build, `ruff check`, and curl probes against a running server (rebinding Host, cross-origin and `Origin: null` writes → 403; empty save → 400; path traversal → 400; same-origin GET → 200; SSE still streams through the middleware).

@@ -115,6 +115,27 @@ def get_llama_cpp_models():
 # ---------------------------------------------------------------------------
 # Index / Main Page
 # ---------------------------------------------------------------------------
+# No inline scripts or on* handlers are allowed: app.js wires everything up.
+# style-src keeps 'unsafe-inline' for the many style="" attributes; worker-src
+# needs blob: because pdf.js wraps its cross-origin worker in a blob URL;
+# connect-src allows a local Ollama for the browser-side model list.
+CSP = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        "worker-src 'self' blob: https://cdnjs.cloudflare.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https:",
+        "connect-src 'self' http://localhost:* http://127.0.0.1:*",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """Render the customizer page with forms pre-populated from JSON."""
@@ -130,6 +151,7 @@ async def index(request: Request):
             "data_json": json.dumps(data).replace("<", "\\u003c"),
             "use_minified": USE_MINIFIED,
         },
+        headers={"Content-Security-Policy": CSP},
     )
 
 
