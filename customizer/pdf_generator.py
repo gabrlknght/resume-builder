@@ -52,9 +52,13 @@ def render_tex_from_data(
 
 
 def compile_pdf_from_tex(tex_name: str) -> Path:
-    """Compile .tex to PDF using pdflatex."""
+    """Compile .tex to PDF using pdflatex.
+
+    -no-shell-escape disables \\write18 outright, even if the TeX distribution
+    defaults to restricted or full shell escape.
+    """
     result = subprocess.run(
-        ["pdflatex", "-interaction=nonstopmode", tex_name],
+        ["pdflatex", "-no-shell-escape", "-interaction=nonstopmode", tex_name],
         capture_output=True,
         text=True,
         cwd=str(PROJECT_ROOT),

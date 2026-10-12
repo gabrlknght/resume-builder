@@ -100,8 +100,8 @@
 %----------HEADING----------
 %----------HEADING-----------------
 \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
-  \textbf{\href{((= website =))}{\Large ((= profile.name =))}} & Email : \href{mailto:((= contact.email =))}{((= contact.email =))}\\
-  \href{((= website =))}{((= website =))} & Mobile : ((= phone =)) \\ 
+  \textbf{\href{((= website =))}{\Large ((= profile.name | latex_escape =))}} & Email : \href{mailto:((= contact.email =))}{((= contact.email | latex_escape =))}\\
+  \href{((= website =))}{((= website =))} & Mobile : ((= phone | latex_escape =)) \\ 
   \href{((= profile.socials.linkedin =))}{LinkedIn: ((= profile.socials.linkedin | linkedin_username =))} & \href{((= profile.socials.github =))}{GitHub: ((= profile.socials.github | github_username =))} \\
 \end{tabular*}
 
@@ -110,8 +110,8 @@
   \resumeSubHeadingListStart
 (( for edu in education ))
     \resumeSubheading
-      {((= edu.institution =))}{((= edu.location =))}
-      {((= edu.degree =))}{((= edu.duration =))}
+      {((= edu.institution | latex_escape =))}{((= edu.location | latex_escape =))}
+      {((= edu.degree | latex_escape =))}{((= edu.duration | latex_escape =))}
 (( endfor ))
   \resumeSubHeadingListEnd
 
@@ -121,8 +121,8 @@
 (( for job in experience ))
 
     \resumeSubheading
-      {((= job.role =))}{((= job.location =))}
-      {((= job.company =))}{((= job.startDate | format_duration(job.endDate) =))}
+      {((= job.role | latex_escape =))}{((= job.location | latex_escape =))}
+      {((= job.company | latex_escape =))}{((= job.startDate | format_duration(job.endDate) =))}
       \resumeItemListStart
 (( if loop.index0 < 4 ))
   (( for detail in job.details ))

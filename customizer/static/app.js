@@ -6,9 +6,9 @@
 /* eslint-disable no-unused-vars */ // functions called from HTML onclick attributes
 
 // ---------------------------------------------------------------------------
-// State — hydrated from server-rendered window.__DATA__
+// State — hydrated from the server-rendered #initial-data JSON block
 // ---------------------------------------------------------------------------
-const state = structuredClone(window.__DATA__);
+const state = JSON.parse(document.getElementById("initial-data").textContent);
 
 // Staged review state for AI tailoring
 let originalSnapshot = null; // pre-tailoring state for Reset
@@ -378,7 +378,7 @@ function createEducationEntry(entry, index) {
     div.innerHTML = `
         <div class="array-entry-header">
             <span class="array-entry-number">#${index + 1}</span>
-            <button type="button" class="btn-danger btn-small" onclick="removeEducation(${index})">REMOVE</button>
+            <button type="button" class="btn-danger btn-small" data-action="removeEducation" data-args="[${index}]">REMOVE</button>
         </div>
         <div class="field-row">
             <div class="field">
@@ -482,7 +482,7 @@ function createExperienceEntry(entry, index) {
             (d, di) => `
         <div class="detail-item">
             <textarea data-exp="${index}" data-detail="${di}">${esc(d)}</textarea>
-            <button type="button" class="btn-danger btn-small" onclick="removeDetail(${index}, ${di})">×</button>
+            <button type="button" class="btn-danger btn-small" data-action="removeDetail" data-args="[${index}, ${di}]">×</button>
         </div>`,
         )
         .join("");
@@ -491,7 +491,7 @@ function createExperienceEntry(entry, index) {
         <div class="array-entry-header">
             <span class="drag-handle" title="Drag to reorder">⠿</span>
             <span class="array-entry-number">#${index + 1}</span>
-            <button type="button" class="btn-danger btn-small" onclick="removeExperience(${index})">REMOVE</button>
+            <button type="button" class="btn-danger btn-small" data-action="removeExperience" data-args="[${index}]">REMOVE</button>
         </div>
         <div class="field-row">
             <div class="field">
@@ -520,7 +520,7 @@ function createExperienceEntry(entry, index) {
         <div class="field-group">
             <div class="field-group-title">DETAIL BULLETS</div>
             <div id="details-${index}">${detailsHtml}</div>
-            <button type="button" class="btn-secondary btn-small" onclick="addDetail(${index})">+ ADD BULLET</button>
+            <button type="button" class="btn-secondary btn-small" data-action="addDetail" data-args="[${index}]">+ ADD BULLET</button>
         </div>
     `;
 
@@ -648,7 +648,7 @@ function createProjectEntry(entry, index) {
     const techTagsHtml = techs
         .map(
             (t, ti) =>
-                `<span class="tech-tag">${esc(t)}<button type="button" onclick="removeTech(${index}, ${ti})">×</button></span>`,
+                `<span class="tech-tag">${esc(t)}<button type="button" data-action="removeTech" data-args="[${index}, ${ti}]">×</button></span>`,
         )
         .join("");
 
@@ -656,7 +656,7 @@ function createProjectEntry(entry, index) {
         <div class="array-entry-header">
             <span class="drag-handle" title="Drag to reorder">⠿</span>
             <span class="array-entry-number">#${index + 1}</span>
-            <button type="button" class="btn-danger btn-small" onclick="removeProject(${index})">REMOVE</button>
+            <button type="button" class="btn-danger btn-small" data-action="removeProject" data-args="[${index}]">REMOVE</button>
         </div>
         <div class="field">
             <label>TITLE</label>
@@ -675,7 +675,7 @@ function createProjectEntry(entry, index) {
             <div class="tech-tags" id="techs-${index}">${techTagsHtml}</div>
             <div class="tech-add">
                 <input type="text" id="tech-input-${index}" placeholder="Add technology">
-                <button type="button" class="btn-secondary btn-small" onclick="addTech(${index})">ADD</button>
+                <button type="button" class="btn-secondary btn-small" data-action="addTech" data-args="[${index}]">ADD</button>
             </div>
         </div>
     `;
@@ -760,7 +760,7 @@ function createSkillCategoryEntry(entry, index) {
     const itemTagsHtml = (entry.items || [])
         .map(
             (item, ii) =>
-                `<span class="tech-tag">${esc(item)}<button type="button" onclick="removeSkillItem(${index}, ${ii})">×</button></span>`,
+                `<span class="tech-tag">${esc(item)}<button type="button" data-action="removeSkillItem" data-args="[${index}, ${ii}]">×</button></span>`,
         )
         .join("");
 
@@ -768,7 +768,7 @@ function createSkillCategoryEntry(entry, index) {
         <div class="array-entry-header">
             <span class="drag-handle" title="Drag to reorder">⠿</span>
             <span class="array-entry-number">#${index + 1}</span>
-            <button type="button" class="btn-danger btn-small" onclick="removeSkillCategory(${index})">REMOVE</button>
+            <button type="button" class="btn-danger btn-small" data-action="removeSkillCategory" data-args="[${index}]">REMOVE</button>
         </div>
         <div class="field">
             <label>CATEGORY</label>
@@ -779,7 +779,7 @@ function createSkillCategoryEntry(entry, index) {
             <div class="tech-tags" id="skill-items-${index}">${itemTagsHtml}</div>
             <div class="tech-add">
                 <input type="text" id="skill-input-${index}" placeholder="Add skill">
-                <button type="button" class="btn-secondary btn-small" onclick="addSkillItem(${index})">ADD</button>
+                <button type="button" class="btn-secondary btn-small" data-action="addSkillItem" data-args="[${index}]">ADD</button>
             </div>
         </div>
     `;
@@ -926,7 +926,8 @@ async function renderPDFPreview(blob) {
         "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
 
     const arrayBuffer = await blob.arrayBuffer();
-    pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    // isEvalSupported: false — the CSP forbids eval; skip pdf.js's probe.
+    pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false }).promise;
     totalPages = pdfDoc.numPages;
     currentPage = 1;
 
@@ -1182,9 +1183,9 @@ function applyTailoredData(data, isSkip) {
             <div style="position: relative; flex: 1; overflow-y: auto; min-height: 0;">
                 <pre style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #0a0a0a; padding: 0.5rem; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border); margin: 0;">${diffHtml}</pre>
                 <div style="position: sticky; bottom: 0; display: flex; gap: 8px; padding: 8px; background: linear-gradient(transparent, var(--bg) 30%); margin-top: -2rem;">
-                    <button onclick="applyPendingChanges()" style="flex: 1; padding: 8px; background: #2ecc71; color: #000; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: bold; text-transform: uppercase;">Apply Changes</button>
-                    <button onclick="discardPendingChanges()" style="flex: 1; padding: 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;">Discard</button>
-                    <button onclick="resetToOriginal()" style="padding: 8px 12px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;" ${!originalSnapshot ? "disabled" : ""}>Reset</button>
+                    <button data-action="applyPendingChanges" style="flex: 1; padding: 8px; background: #2ecc71; color: #000; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: bold; text-transform: uppercase;">Apply Changes</button>
+                    <button data-action="discardPendingChanges" style="flex: 1; padding: 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;">Discard</button>
+                    <button data-action="resetToOriginal" style="padding: 8px 12px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit; font-size: 11px; text-transform: uppercase;" ${!originalSnapshot ? "disabled" : ""}>Reset</button>
                 </div>
             </div>
         </div>`;
@@ -1427,9 +1428,9 @@ function renderCoverLetterPreview(data) {
             ${improvementsHtml}
             ${renderTimingHtml(data.timing)}
             <div class="cl-actions">
-                <button type="button" class="btn-secondary btn-small" onclick="copyCoverLetter()">COPY TEXT</button>
-                <button type="button" class="btn-secondary btn-small" onclick="downloadCoverLetter()">DOWNLOAD .TXT</button>
-                <button type="button" class="btn-secondary btn-small" onclick="printCoverLetter()">PRINT / PDF</button>
+                <button type="button" class="btn-secondary btn-small" data-action="copyCoverLetter">COPY TEXT</button>
+                <button type="button" class="btn-secondary btn-small" data-action="downloadCoverLetter">DOWNLOAD .TXT</button>
+                <button type="button" class="btn-secondary btn-small" data-action="printCoverLetter">PRINT / PDF</button>
             </div>
         </div>`;
 
@@ -1751,7 +1752,7 @@ function renderClHistoryTable(data) {
                         : "";
                 metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ""}`;
             }
-            const pdfLink = `<button type="button" class="btn-secondary btn-small" onclick="printClHistoryEntry('${esc(entry.id)}')" title="Open print/PDF dialog">PDF</button>`;
+            const pdfLink = `<button type="button" class="btn-secondary btn-small" data-action="printClHistoryEntry" data-args="${esc(JSON.stringify([entry.id]))}" title="Open print/PDF dialog">PDF</button>`;
             const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
 
             const modelInfo =
@@ -1776,8 +1777,8 @@ function renderClHistoryTable(data) {
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">${txtLink}</td>
             <td style="white-space:nowrap;">
-                <button type="button" class="btn-secondary btn-small" title="Restore to editor" onclick="restoreClHistoryEntry('${esc(entry.id)}')">✅</button>
-                <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" onclick="deleteClHistoryEntry('${esc(entry.id)}')">❌</button>
+                <button type="button" class="btn-secondary btn-small" title="Restore to editor" data-action="restoreClHistoryEntry" data-args="${esc(JSON.stringify([entry.id]))}">✅</button>
+                <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" data-action="deleteClHistoryEntry" data-args="${esc(JSON.stringify([entry.id]))}">❌</button>
             </td>
         </tr>`;
         })
@@ -1789,9 +1790,9 @@ function renderClHistoryTable(data) {
             ? `
         <div class="history-pagination">
             <span>${data.total} total entries</span>
-            <button type="button" class="btn-secondary btn-small" onclick="loadClHistoryDashboard(${clHistoryPage - 1})" ${clHistoryPage <= 1 ? "disabled" : ""}>← PREV</button>
+            <button type="button" class="btn-secondary btn-small" data-action="loadClHistoryDashboard" data-args="[${clHistoryPage - 1}]" ${clHistoryPage <= 1 ? "disabled" : ""}>← PREV</button>
             <span style="color:var(--fg);">${clHistoryPage} / ${totalPages}</span>
-            <button type="button" class="btn-secondary btn-small" onclick="loadClHistoryDashboard(${clHistoryPage + 1})" ${clHistoryPage >= totalPages ? "disabled" : ""}>NEXT →</button>
+            <button type="button" class="btn-secondary btn-small" data-action="loadClHistoryDashboard" data-args="[${clHistoryPage + 1}]" ${clHistoryPage >= totalPages ? "disabled" : ""}>NEXT →</button>
         </div>`
             : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
 
@@ -1946,11 +1947,11 @@ function renderHistoryTable(data) {
             <td>${scoreHtml}</td>
             <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:pre-line;">${metricsHtml}</td>
             <td style="font-family:JetBrains Mono,monospace; font-size:11px; white-space:nowrap; line-height:1.2;">${modelInfo}</td>
-            <td><span class="${hiredClass}" onclick="toggleHired('${esc(entry.id)}', ${entry.hired}, this)" title="Click to toggle">${hiredLabel}</span></td>
+            <td><span class="${hiredClass}" data-action="toggleHired" data-args="${esc(JSON.stringify([entry.id, entry.hired]))}" title="Click to toggle">${hiredLabel}</span></td>
             <td style="white-space:nowrap;">${pdfLink}</td>
             <td style="white-space:nowrap;">
-                    <button type="button" class="btn-secondary btn-small" title="Restore" onclick="restoreHistoryEntry('${esc(entry.id)}')">✅</button>
-                    <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" onclick="deleteHistoryEntry('${esc(entry.id)}')">❌</button>
+                    <button type="button" class="btn-secondary btn-small" title="Restore" data-action="restoreHistoryEntry" data-args="${esc(JSON.stringify([entry.id]))}">✅</button>
+                    <button type="button" class="btn-danger btn-small" title="Delete" style="margin-left:4px;" data-action="deleteHistoryEntry" data-args="${esc(JSON.stringify([entry.id]))}">❌</button>
             </td>
         </tr>`;
         })
@@ -1962,9 +1963,9 @@ function renderHistoryTable(data) {
             ? `
         <div class="history-pagination">
             <span>${data.total} total entries</span>
-            <button type="button" class="btn-secondary btn-small" onclick="loadHistoryDashboard(${historyPage - 1})" ${historyPage <= 1 ? "disabled" : ""}>← PREV</button>
+            <button type="button" class="btn-secondary btn-small" data-action="loadHistoryDashboard" data-args="[${historyPage - 1}]" ${historyPage <= 1 ? "disabled" : ""}>← PREV</button>
             <span style="color:var(--fg);">${historyPage} / ${totalPages}</span>
-            <button type="button" class="btn-secondary btn-small" onclick="loadHistoryDashboard(${historyPage + 1})" ${historyPage >= totalPages ? "disabled" : ""}>NEXT →</button>
+            <button type="button" class="btn-secondary btn-small" data-action="loadHistoryDashboard" data-args="[${historyPage + 1}]" ${historyPage >= totalPages ? "disabled" : ""}>NEXT →</button>
         </div>`
             : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
 
@@ -2101,7 +2102,7 @@ function renderStatsDashboard(data) {
         .map(
             (p) =>
                 `<button class="btn-secondary btn-small stats-toggle${statsPeriod === p ? " active" : ""}"
-                 onclick="setStatsPeriod('${p}')">${p.toUpperCase()}</button>`,
+                 data-action="setStatsPeriod" data-args="${esc(JSON.stringify([p]))}">${p.toUpperCase()}</button>`,
         )
         .join("");
 
@@ -2113,7 +2114,7 @@ function renderStatsDashboard(data) {
         .map(
             ([val, label]) =>
                 `<button class="btn-secondary btn-small stats-toggle${statsType === val ? " active" : ""}"
-                 onclick="setStatsType('${val}')">${label}</button>`,
+                 data-action="setStatsType" data-args="${esc(JSON.stringify([val]))}">${label}</button>`,
         )
         .join("");
 
@@ -2277,10 +2278,14 @@ function toast(msg, isError = false) {
 // ---------------------------------------------------------------------------
 // Util
 // ---------------------------------------------------------------------------
+// Safe for both element text and quoted attribute values.
 function esc(str) {
-    const d = document.createElement("div");
-    d.textContent = str;
-    return d.innerHTML;
+    return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 function formatDuration(totalSeconds) {
@@ -2300,3 +2305,133 @@ function renderTimingHtml(timing) {
         ${rate !== null ? `<span>${rate} tok/s</span>` : ""}
     </div>`;
 }
+
+// ---------------------------------------------------------------------------
+// Settings modal wiring (moved from inline <script> for the CSP)
+// ---------------------------------------------------------------------------
+document.getElementById("btn-settings").addEventListener("click", showSettingsModal);
+document.getElementById("save-mode-indicator").addEventListener("click", showSettingsModal);
+document.getElementById("settings-modal").addEventListener("click", function (e) {
+    if (e.target === this) hideSettingsModal();
+});
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") hideSettingsModal();
+});
+
+// ---------------------------------------------------------------------------
+// Theme + Font Switcher (moved from inline <script> for the CSP)
+// ---------------------------------------------------------------------------
+(function () {
+    const themes = {
+        default: { bg: "#000000", fg: "#ffffff", muted: "#888888", border: "#333333", surface: "#111111", surfaceHover: "#0d0d0d", surfaceChecked: "#0a0a0a" },
+        darkslime: { bg: "#0a0a0a", fg: "#00ff41", muted: "#00aa2a", border: "#004d00", surface: "#141414", surfaceHover: "#111111", surfaceChecked: "#0e0e0e" },
+        crimson: { bg: "#1a0a0a", fg: "#ff6b6b", muted: "#aa4444", border: "#662222", surface: "#221010", surfaceHover: "#1e0c0c", surfaceChecked: "#160808" },
+        espresso: { bg: "#1a1410", fg: "#d4a76a", muted: "#886644", border: "#554433", surface: "#221c14", surfaceHover: "#1e1810", surfaceChecked: "#161008" },
+        smoothie: { bg: "#1a0a1a", fg: "#ff69b4", muted: "#cc4488", border: "#662266", surface: "#221422", surfaceHover: "#1e101e", surfaceChecked: "#160c16" },
+    };
+
+    function applyTheme(name) {
+        const t = themes[name] || themes.default;
+        const r = document.documentElement.style;
+        r.setProperty("--bg", t.bg);
+        r.setProperty("--fg", t.fg);
+        r.setProperty("--muted", t.muted);
+        r.setProperty("--border", t.border);
+        r.setProperty("--surface", t.surface);
+        r.setProperty("--surface-hover", t.surfaceHover);
+        r.setProperty("--surface-checked", t.surfaceChecked);
+        localStorage.setItem("theme", name);
+        document.querySelectorAll(".theme-option input").forEach(function (el) {
+            el.checked = el.value === name;
+        });
+    }
+    applyTheme(localStorage.getItem("theme") || "default");
+
+    function applyFont(name) {
+        document.documentElement.style.setProperty("--font-main", '"' + name + '"');
+        localStorage.setItem("font", name);
+        document.querySelectorAll(".font-option input").forEach(function (el) {
+            el.checked = el.value === name;
+        });
+    }
+    applyFont(localStorage.getItem("font") || "jetbrains mono");
+
+    document.getElementById("btn-theme").addEventListener("click", function () {
+        document.getElementById("theme-modal").style.display = "flex";
+    });
+    document.getElementById("theme-modal").addEventListener("click", function (e) {
+        if (e.target === this) this.style.display = "none";
+    });
+    document.querySelectorAll(".theme-option input").forEach(function (radio) {
+        radio.addEventListener("change", function () {
+            applyTheme(this.value);
+            document.getElementById("theme-modal").style.display = "none";
+        });
+    });
+    document.querySelectorAll(".font-option input").forEach(function (radio) {
+        radio.addEventListener("change", function () {
+            applyFont(this.value);
+        });
+    });
+})();
+
+// ---------------------------------------------------------------------------
+// Click actions — the CSP blocks inline onclick, so buttons declare
+// data-action="name" and optional data-args="[json array]". Handlers run with
+// `this` bound to the clicked element, matching inline-handler semantics.
+// Only names listed here can be triggered.
+// ---------------------------------------------------------------------------
+const ACTIONS = {
+    saveToBackend,
+    generatePDF,
+    addEducation,
+    removeEducation,
+    addExperience,
+    removeExperience,
+    addDetail,
+    removeDetail,
+    addProject,
+    removeProject,
+    addTech,
+    removeTech,
+    addSkillCategory,
+    removeSkillCategory,
+    addSkillItem,
+    removeSkillItem,
+    tailorResume,
+    applyPendingChanges,
+    discardPendingChanges,
+    resetToOriginal,
+    generateCoverLetter,
+    copyCoverLetter,
+    downloadCoverLetter,
+    printCoverLetter,
+    prevPage,
+    nextPage,
+    downloadPDF,
+    switchPreviewTab,
+    hideSettingsModal,
+    applySettings,
+    closeThemeModal: () => {
+        document.getElementById("theme-modal").style.display = "none";
+    },
+    loadHistoryDashboard,
+    restoreHistoryEntry,
+    deleteHistoryEntry,
+    toggleHired(entryId, currentVal) {
+        return toggleHired(entryId, currentVal, this);
+    },
+    loadClHistoryDashboard,
+    restoreClHistoryEntry,
+    deleteClHistoryEntry,
+    printClHistoryEntry,
+    setStatsPeriod,
+    setStatsType,
+};
+
+document.addEventListener("click", function (e) {
+    const el = e.target.closest("[data-action]");
+    if (!el || !Object.hasOwn(ACTIONS, el.dataset.action)) return;
+    const args = el.dataset.args ? JSON.parse(el.dataset.args) : [];
+    ACTIONS[el.dataset.action].apply(el, args);
+});

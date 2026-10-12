@@ -9,11 +9,14 @@ Usage:
     python customizer/server.py
 """
 
+import json
+import os
 import shutil
 import sys
 from datetime import datetime as dt_obj
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # Ensure customizer/ is on sys.path so `from pipeline import ...` works
 _CUSTOMIZER_DIR = Path(__file__).resolve().parent
@@ -38,6 +41,7 @@ from fastapi.templating import Jinja2Templates
 from history_manager import (
     delete_history_entry,
     finish_resume_history_entry,
+    is_within,
     restore_cl_history_entry,
     restore_history_entry,
     save_cover_letter_history,
@@ -53,6 +57,41 @@ from pdf_generator import PDFGenerationError, generate_pdf
 app = FastAPI(title="Resume Customizer")
 app.mount("/static", StaticFiles(directory=CUSTOMIZER_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=CUSTOMIZER_DIR / "templates")
+
+
+# ---------------------------------------------------------------------------
+# Local-only Request Guard
+# ---------------------------------------------------------------------------
+# There is no auth, so without this any web page open in the browser could
+# POST here (request.json() ignores Content-Type, so a no-preflight text/plain
+# request works) and a DNS-rebinding page could read responses. Extra hosts,
+# e.g. a LAN IP when running with --host 0.0.0.0, go in RESUME_ALLOWED_HOSTS
+# as a comma-separated list.
+ALLOWED_HOSTS = {"localhost", "127.0.0.1", "[::1]"} | {
+    h.strip().lower() for h in os.getenv("RESUME_ALLOWED_HOSTS", "").split(",") if h.strip()
+}
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def _hostname(host_header: str) -> str:
+    """Strip the port from a Host header value ("[::1]:7777" -> "[::1]")."""
+    if host_header.startswith("["):
+        return host_header.split("]")[0] + "]"
+    return host_header.rsplit(":", 1)[0]
+
+
+@app.middleware("http")
+async def local_only_guard(request: Request, call_next):
+    host = request.headers.get("host", "").lower()
+    if _hostname(host) not in ALLOWED_HOSTS:
+        return JSONResponse(status_code=403, content={"error": "Host not allowed"})
+    # Browsers always send Origin on cross-origin writes; non-browser clients
+    # (curl, scripts) send none and are allowed through.
+    origin = request.headers.get("origin")
+    if request.method not in SAFE_METHODS and origin is not None:
+        if urlsplit(origin).netloc.lower() != host:
+            return JSONResponse(status_code=403, content={"error": "Cross-origin request blocked"})
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -76,20 +115,43 @@ def get_llama_cpp_models():
 # ---------------------------------------------------------------------------
 # Index / Main Page
 # ---------------------------------------------------------------------------
+# No inline scripts or on* handlers are allowed: app.js wires everything up.
+# style-src keeps 'unsafe-inline' for the many style="" attributes; worker-src
+# needs blob: because pdf.js wraps its cross-origin worker in a blob URL;
+# connect-src allows a local Ollama for the browser-side model list.
+CSP = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        "worker-src 'self' blob: https://cdnjs.cloudflare.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https:",
+        "connect-src 'self' http://localhost:* http://127.0.0.1:*",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """Render the customizer page with forms pre-populated from JSON."""
     data = load_all_sections(SECTION_FILES, DATA_DIR)
-    import json
 
     return templates.TemplateResponse(
         request,
         "index.html",
         context={
             "data": data,
-            "data_json": json.dumps(data),
+            # Embedded raw in a <script> tag: escape "<" so a "</script>" inside
+            # resume text can't close the tag. The escaped form is valid JSON/JS.
+            "data_json": json.dumps(data).replace("<", "\\u003c"),
             "use_minified": USE_MINIFIED,
         },
+        headers={"Content-Security-Policy": CSP},
     )
 
 
@@ -165,6 +227,17 @@ async def generate(request: Request):
 async def save(request: Request):
     """Overwrite the on-disk JSON files with the provided payload."""
     payload = await request.json()
+    # save_all_sections writes {} for any missing section, so a partial or
+    # malformed payload would silently wipe data files. Require the exact shape.
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != set(SECTION_FILES)
+        or not all(isinstance(v, dict) for v in payload.values())
+    ):
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Payload must contain exactly: {', '.join(SECTION_FILES)}"},
+        )
     save_all_sections(SECTION_FILES, DATA_DIR, payload)
     return {"status": "ok", "message": "All data saved to disk."}
 
@@ -239,7 +312,7 @@ async def history_hired(request: Request):
 async def history_file(file_path: str):
     """Serve a PDF file from the history directory."""
     target = (HISTORY_DIR / file_path).resolve()
-    if not str(target).startswith(str(HISTORY_DIR.resolve())):
+    if not is_within(target, HISTORY_DIR):
         return JSONResponse(status_code=400, content={"error": "Invalid path"})
     if not target.exists() or target.suffix != ".pdf":
         return JSONResponse(status_code=404, content={"error": "File not found"})
@@ -455,7 +528,7 @@ async def cl_history_restore(entry_id: str):
 async def cl_history_file(file_path: str):
     """Serve a cover letter .txt file from the cl-history directory."""
     target = (CL_HISTORY_DIR / file_path).resolve()
-    if not str(target).startswith(str(CL_HISTORY_DIR.resolve())):
+    if not is_within(target, CL_HISTORY_DIR):
         return JSONResponse(status_code=400, content={"error": "Invalid path"})
     if not target.exists() or target.suffix != ".txt":
         return JSONResponse(status_code=404, content={"error": "File not found"})

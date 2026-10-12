@@ -15,9 +15,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/{{ 'style.min.css' if use_minified else 'style.css' }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/7.0.0/diff.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module" integrity="sha384-fzqD3KLclV6zyTSuToNuSG370CipiqN572vfT2zti7ORKnQPaJrvsz8deY+/Tgwe" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/7.0.0/diff.min.js" integrity="sha384-UeyWE2TKK+s95khAzg8xeTD88VbztEqt1mbxzkzwAPM32TPJSj8Lyg7E7tVXAyRL" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 </head>
 
 <body>
@@ -33,8 +33,8 @@
                 <span class="action-separator"></span>
                 <button type="button" class="btn-secondary" id="save-mode-indicator" title="Change save mode">&#128190; MANUAL</button>
             </div>
-            <button type="button" class="btn-secondary" id="btn-save" onclick="saveToBackend()">SAVE</button>
-            <button type="button" id="btn-generate" onclick="generatePDF()">GENERATE</button>
+            <button type="button" class="btn-secondary" id="btn-save" data-action="saveToBackend">SAVE</button>
+            <button type="button" id="btn-generate" data-action="generatePDF">GENERATE</button>
         </div>
     </header>
 
@@ -99,11 +99,11 @@
             <div class="section" id="section-education">
                 <div class="section-header">
                     <h2 class="section-title">EDUCATION</h2>
-                    <button type="button" class="btn-secondary btn-small" onclick="addEducation()">+ ADD</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addEducation">+ ADD</button>
                 </div>
                 <div id="education-list"></div>
                 <div class="array-controls">
-                    <button type="button" class="btn-secondary btn-small" onclick="addEducation()">+ ADD</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addEducation">+ ADD</button>
                 </div>
             </div>
 
@@ -111,11 +111,11 @@
             <div class="section" id="section-experience">
                 <div class="section-header">
                     <h2 class="section-title">EXPERIENCE</h2>
-                    <button type="button" class="btn-secondary btn-small" onclick="addExperience()">+ ADD</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addExperience">+ ADD</button>
                 </div>
                 <div id="experience-list"></div>
                 <div class="array-controls">
-                    <button type="button" class="btn-secondary btn-small" onclick="addExperience()">+ ADD</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addExperience">+ ADD</button>
                 </div>
             </div>
 
@@ -123,11 +123,11 @@
             <div class="section" id="section-projects">
                 <div class="section-header">
                     <h2 class="section-title">PROJECTS</h2>
-                    <button type="button" class="btn-secondary btn-small" onclick="addProject()">+ ADD</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addProject">+ ADD</button>
                 </div>
                 <div id="projects-list"></div>
                 <div class="array-controls">
-                    <button type="button" class="btn-secondary btn-small" onclick="addProject()">+ ADD</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addProject">+ ADD</button>
                 </div>
             </div>
 
@@ -135,11 +135,11 @@
             <div class="section" id="section-skills">
                 <div class="section-header">
                     <h2 class="section-title">SKILLS</h2>
-                    <button type="button" class="btn-secondary btn-small" onclick="addSkillCategory()">+ ADD CATEGORY</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addSkillCategory">+ ADD CATEGORY</button>
                 </div>
                 <div id="skills-list"></div>
                 <div class="array-controls">
-                    <button type="button" class="btn-secondary btn-small" onclick="addSkillCategory()">+ ADD CATEGORY</button>
+                    <button type="button" class="btn-secondary btn-small" data-action="addSkillCategory">+ ADD CATEGORY</button>
                 </div>
             </div>
 
@@ -203,7 +203,7 @@
                     </div>
                 </div>
                 <div class="array-controls">
-                    <button type="button" class="btn-secondary" id="btn-tailor" onclick="tailorResume()"
+                    <button type="button" class="btn-secondary" id="btn-tailor" data-action="tailorResume"
                         style="width: 100%; margin-top: 1rem;">TAILOR RESUME (AI)</button>
                     <div id="tailor-progress" style="display: none; margin: 0.5rem 0;">
                         <div style="background: var(--border); border-radius: 4px; height: 4px; overflow: hidden;">
@@ -286,7 +286,7 @@
                 </div>
                 <div class="array-controls">
                     <button type="button" class="btn-secondary" id="btn-cover-letter"
-                        onclick="generateCoverLetter()" style="width: 100%; margin-top: 1rem;">GENERATE COVER LETTER (AI)</button>
+                        data-action="generateCoverLetter" style="width: 100%; margin-top: 1rem;">GENERATE COVER LETTER (AI)</button>
                     <div id="cl-progress" style="display: none; margin: 0.5rem 0;">
                         <div style="background: var(--border); border-radius: 4px; height: 4px; overflow: hidden;">
                             <div id="cl-progress-bar"
@@ -327,20 +327,20 @@
         <aside class="preview-pane" id="preview-pane">
             <div class="preview-header">
                 <div class="page-nav" id="page-nav" style="display:none">
-                    <button type="button" class="btn-small" id="btn-prev-page" onclick="prevPage()">‹</button>
+                    <button type="button" class="btn-small" id="btn-prev-page" data-action="prevPage">‹</button>
                     <span id="page-indicator">1 / 1</span>
-                    <button type="button" class="btn-small" id="btn-next-page" onclick="nextPage()">›</button>
+                    <button type="button" class="btn-small" id="btn-next-page" data-action="nextPage">›</button>
                     <button type="button" class="btn-secondary btn-small" id="btn-download"
-                        onclick="downloadPDF()">DOWNLOAD</button>
+                        data-action="downloadPDF">DOWNLOAD</button>
                 </div>
                 <span>PREVIEW</span>
                 <div class="preview-tabs" id="preview-tabs" style="display:none">
                     <button type="button" class="preview-tab active" id="tab-pdf"
-                        onclick="switchPreviewTab('pdf')">PDF</button>
-                    <button type="button" class="preview-tab" id="tab-ai" onclick="switchPreviewTab('ai')">AI
+                        data-action="switchPreviewTab" data-args='["pdf"]'>PDF</button>
+                    <button type="button" class="preview-tab" id="tab-ai" data-action="switchPreviewTab" data-args='["ai"]'>AI
                         Results</button>
                     <button type="button" class="preview-tab" id="tab-letter"
-                        onclick="switchPreviewTab('letter')" style="display:none">LETTER</button>
+                        data-action="switchPreviewTab" data-args='["letter"]' style="display:none">LETTER</button>
                 </div>
             </div>
             <div class="preview-body" id="preview-body">
@@ -372,8 +372,8 @@
                 </label>
             </div>
             <div class="settings-footer">
-                <button type="button" class="btn-secondary btn-small" onclick="hideSettingsModal()">Cancel</button>
-                <button type="button" class="btn-small" onclick="applySettings()">APPLY</button>
+                <button type="button" class="btn-secondary btn-small" data-action="hideSettingsModal">Cancel</button>
+                <button type="button" class="btn-small" data-action="applySettings">APPLY</button>
             </div>
         </div>
     </div>
@@ -495,7 +495,7 @@
             </div>
 
             <div class="settings-footer">
-                <button type="button" class="btn-secondary btn-small" onclick="document.getElementById('theme-modal').style.display='none'">CLOSE</button>
+                <button type="button" class="btn-secondary btn-small" data-action="closeThemeModal">CLOSE</button>
             </div>
         </div>
     </div>
@@ -505,78 +505,7 @@
 
     <div class="toast" id="toast"></div>
 
-    <script>
-        window.__DATA__ = {{ data_json | safe }};
-    </script>
-    <script>
-        document.getElementById('btn-settings').addEventListener('click', function() {
-            const modal = document.getElementById('settings-modal');
-            modal.style.display = 'flex';
-        });
-        document.getElementById('settings-modal').addEventListener('click', function(e) {
-            if (e.target === this) hideSettingsModal();
-        });
-        document.getElementById('save-mode-indicator').addEventListener('click', function() {
-            const modal = document.getElementById('settings-modal');
-            modal.style.display = 'flex';
-        });
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') hideSettingsModal();
-        });
-    </script>
-    <script>
-        // ---- Theme + Font Switcher ----
-        (function() {
-            var themes = {
-                default:  { bg:'#000000', fg:'#ffffff', muted:'#888888', border:'#333333', surface:'#111111', surfaceHover:'#0d0d0d', surfaceChecked:'#0a0a0a' },
-                darkslime:{ bg:'#0a0a0a', fg:'#00ff41', muted:'#00aa2a', border:'#004d00', surface:'#141414', surfaceHover:'#111111', surfaceChecked:'#0e0e0e' },
-                crimson:  { bg:'#1a0a0a', fg:'#ff6b6b', muted:'#aa4444', border:'#662222', surface:'#221010', surfaceHover:'#1e0c0c', surfaceChecked:'#160808' },
-                espresso:   { bg:'#1a1410', fg:'#d4a76a', muted:'#886644', border:'#554433', surface:'#221c14', surfaceHover:'#1e1810', surfaceChecked:'#161008' },
-                smoothie:   { bg:'#1a0a1a', fg:'#ff69b4', muted:'#cc4488', border:'#662266', surface:'#221422', surfaceHover:'#1e101e', surfaceChecked:'#160c16' }
-            };
-            function applyTheme(name) {
-                var t = themes[name];
-                var r = document.documentElement.style;
-                r.setProperty('--bg', t.bg);
-                r.setProperty('--fg', t.fg);
-                r.setProperty('--muted', t.muted);
-                r.setProperty('--border', t.border);
-                r.setProperty('--surface', t.surface);
-                r.setProperty('--surface-hover', t.surfaceHover);
-                r.setProperty('--surface-checked', t.surfaceChecked);
-                localStorage.setItem('theme', name);
-                document.querySelectorAll('.theme-option input').forEach(function(el){ el.checked = (el.value === name); });
-            }
-            var savedTheme = localStorage.getItem('theme') || 'default';
-            applyTheme(savedTheme);
-
-            function applyFont(name) {
-                document.documentElement.style.setProperty('--font-main', '"' + name + '"');
-                localStorage.setItem('font', name);
-                document.querySelectorAll('.font-option input').forEach(function(el){ el.checked = (el.value === name); });
-            }
-            var savedFont = localStorage.getItem('font') || 'jetbrains mono';
-            applyFont(savedFont);
-
-            document.getElementById('btn-theme').addEventListener('click', function() {
-                document.getElementById('theme-modal').style.display = 'flex';
-            });
-            document.getElementById('theme-modal').addEventListener('click', function(e) {
-                if (e.target === this) this.style.display = 'none';
-            });
-            document.querySelectorAll('.theme-option input').forEach(function(radio) {
-                radio.addEventListener('change', function() {
-                    applyTheme(this.value);
-                    document.getElementById('theme-modal').style.display = 'none';
-                });
-            });
-            document.querySelectorAll('.font-option input').forEach(function(radio) {
-                radio.addEventListener('change', function() {
-                    applyFont(this.value);
-                });
-            });
-        })();
-    </script>
+    <script type="application/json" id="initial-data">{{ data_json | safe }}</script>
     <script src="/static/{{ 'app.min.js' if use_minified else 'app.js' }}"></script>
 
 </body>

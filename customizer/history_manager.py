@@ -160,10 +160,20 @@ def _write_cover_letter_files(
     save_json(folder / "_meta.json", meta)
 
 
+def is_within(path: Path, base: Path) -> bool:
+    """True if *path* resolves strictly inside *base*.
+
+    A plain string-prefix check would accept sibling dirs like ``history_evil/``.
+    """
+    resolved = path.resolve()
+    base = base.resolve()
+    return resolved != base and resolved.is_relative_to(base)
+
+
 def restore_history_entry(history_dir: Path, entry_id: str) -> dict:
     """Load resume_data.json for a history entry."""
     entry_dir = (history_dir / entry_id).resolve()
-    if not str(entry_dir).startswith(str(history_dir.resolve())):
+    if not is_within(entry_dir, history_dir):
         raise ValueError("Invalid entry path")
 
     data_file = entry_dir / "resume_data.json"
@@ -175,7 +185,7 @@ def restore_history_entry(history_dir: Path, entry_id: str) -> dict:
 def restore_cl_history_entry(cl_history_dir: Path, entry_id: str) -> dict:
     """Load cover_letter.json for a CL history entry."""
     entry_dir = (cl_history_dir / entry_id).resolve()
-    if not str(entry_dir).startswith(str(cl_history_dir.resolve())):
+    if not is_within(entry_dir, cl_history_dir):
         raise ValueError("Invalid entry path")
 
     data_file = entry_dir / "cover_letter.json"
@@ -187,7 +197,7 @@ def restore_cl_history_entry(cl_history_dir: Path, entry_id: str) -> dict:
 def delete_history_entry(history_dir: Path, folder: str) -> None:
     """Delete an entire history entry folder."""
     target = (history_dir / folder).resolve()
-    if not str(target).startswith(str(history_dir.resolve())):
+    if not is_within(target, history_dir):
         raise ValueError("Invalid folder path")
     if not target.exists():
         raise FileNotFoundError("Entry not found")
@@ -197,7 +207,7 @@ def delete_history_entry(history_dir: Path, folder: str) -> None:
 def update_hired_status(history_dir: Path, folder: str, hired: bool) -> bool:
     """Toggle the hired status on a history entry."""
     meta_file = (history_dir / folder / "_meta.json").resolve()
-    if not str(meta_file).startswith(str(history_dir.resolve())):
+    if not is_within(meta_file, history_dir):
         raise ValueError("Invalid folder path")
     if not meta_file.exists():
         raise FileNotFoundError("Entry not found")
