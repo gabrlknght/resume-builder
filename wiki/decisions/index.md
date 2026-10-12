@@ -183,3 +183,24 @@ Function was annotated `-> str` but returned `dict`.
   - + One fewer file to track; all HTTP routes now live in `server.py`
   - + No behavior change — routes, imports, and callers traced end-to-end with no dangling references
   - - Any external docs or scripts referencing `server_additions.py` by path need updating (wiki/architecture/system.md updated in this pass)
+
+## ADR-012: Local-only request guard and security hardening redo
+
+- **Date:** 2026-10-12
+- **Status:** Accepted
+- **Context:** A security pass by a local model added a PIN gate, history auto-cleanup, PII redaction, a "dangerous keys" payload filter, a rate limiter, and a CSP. On review most of it was broken or ineffective: the new pdflatex command listed `pdflatex` twice and failed every build; the PIN gate was a client-side modal over unauthenticated APIs whose own disable/setup routes needed no PIN; auto-cleanup deleted history beyond 50 entries on every save (hired ones included) and its settings were never persisted; the redaction stripped fields the pipeline never sends and missed `profile.resume.phone`, which it does. It also missed the real threat for an unauthenticated localhost server: any page open in the browser can POST to it, because Starlette's `request.json()` ignores Content-Type so a no-preflight `text/plain` request works. Chained with `json.dumps(data) | safe` inside a `<script>` tag, a cross-site `/api/save` could store a `</script>` payload and get script execution on next load. A cross-site `{}` save alone wiped every data file, since `save_all_sections` writes `{}` for missing sections.
+- **Decision:** Reverted the local model's code changes and redid the hardening narrowly:
+  - `local_only_guard` middleware in `server.py`: rejects any request whose Host isn't `localhost`/`127.0.0.1`/`[::1]` (blocks DNS rebinding), and any non-GET/HEAD/OPTIONS request whose `Origin` doesn't match the Host. Requests without `Origin` (curl, scripts) pass. Extra hosts for `--host 0.0.0.0` LAN use go in `RESUME_ALLOWED_HOSTS` (comma-separated).
+  - `data_json` escapes `<` as `<` before being embedded in the page.
+  - `/api/save` requires exactly the six `SECTION_FILES` keys, each an object.
+  - `history_manager.is_within()` replaces string-prefix path checks in all history helpers and both file-serving routes; it also rejects the base dir itself, which the old check let `delete_history_entry(folder="")` `rmtree`.
+  - `pdflatex -no-shell-escape` is passed explicitly.
+  - `tailor_all_sections` drops `avatar`, `socials`, and `resume` (phone, website) from the profile sent to the LLM; `validate_and_assemble` already restores them from the original data.
+  - SRI hashes on the three CDN scripts, with Chart.js pinned to `4.5.1` (a floating `@4` tag would break SRI on the next release).
+  - Dropped: PIN gate, auto-cleanup, settings endpoint, client-side redaction/consent checkboxes, `DANGEROUS_KEYS` (JSON parsing never builds Python objects), rate limiter, and the CSP (`'unsafe-inline' 'unsafe-eval'` made it mostly cosmetic; a real one needs the inline handlers in `index.html` moved into `app.js` first).
+- **Consequences:**
+  - + Cross-site writes, DNS rebinding reads, and the stored-XSS chain are closed without adding auth
+  - + PDF builds work, and the LLM no longer receives phone, website, or social URLs
+  - - Accessing the server by LAN IP or a custom hostname now needs `RESUME_ALLOWED_HOSTS`
+  - - No CSP yet; `app.js` still has many `innerHTML` writes that rely on `esc()` being applied consistently
+  - - The pdf.js worker script loaded via `workerSrc` is not covered by SRI

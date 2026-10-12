@@ -683,9 +683,14 @@ async def tailor_all_sections(
     tone: str = "professional",
     tracker: Optional[MetricsTracker] = None,
 ) -> tuple[TailoredProfile, ExperienceList, ProjectList]:
-    profile_task = tailor_profile(
-        client, resume_data.get("profile", {}), jd_analysis, model, tone, tracker
-    )
+    # Keep contact details (phone, website, socials, avatar) away from the LLM;
+    # validate_and_assemble restores these fields from the original data.
+    profile = {
+        k: v
+        for k, v in resume_data.get("profile", {}).items()
+        if k not in ("avatar", "socials", "resume")
+    }
+    profile_task = tailor_profile(client, profile, jd_analysis, model, tone, tracker)
     experience_task = tailor_experience(
         client, resume_data.get("experience", {}), jd_analysis, model, tone, tracker
     )

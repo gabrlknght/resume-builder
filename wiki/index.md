@@ -24,7 +24,7 @@ Read this file first when answering queries. Each entry links to a wiki page wit
 
 ## Decisions
 
-- [Decisions](decisions/index.md) — Recorded architectural and project decisions with rationale (ADR-001 through ADR-008)
+- [Decisions](decisions/index.md) — Recorded architectural and project decisions with rationale (ADR-001 through ADR-012)
 
 ## Applications
 

@@ -6,6 +6,10 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-10-12] decision | Security hardening redo: local-only request guard (ADR-012)
+
+Reviewed an uncommitted security pass by a local model and reverted its code changes: the new pdflatex invocation failed every build, and the PIN gate, auto-cleanup, PII redaction, and payload filter were broken or ineffective, while cross-site requests to the unauthenticated localhost server were not addressed. Redid it as ADR-012: Host/Origin guard middleware, `<` escaping in the embedded `data_json`, exact-shape validation on `/api/save`, `is_within()` path checks, explicit `-no-shell-escape`, contact fields stripped from the profile sent to the LLM, and SRI with Chart.js pinned to 4.5.1. Kept the `latex_escape` additions in `templates/resume.tex.j2`. Verified with a real PDF build, `ruff check`, and curl probes against a running server (rebinding Host, cross-origin and `Origin: null` writes → 403; empty save → 400; path traversal → 400; same-origin GET → 200; SSE still streams through the middleware).
+
 ## [2026-10-07] update | Unresolvable requirements.txt pins; wiki setup uses uv
 
 Commit `3b2d062` pinned `openai==3.26.0` (needs `jiter>=0.16`) alongside `instructor==1.17.0` (caps `jiter<0.15`). No instructor release supports openai 3.x yet, so `requirements.txt` could not be resolved by uv or pip. Held `openai==2.54.0` and corrected `pydantic==2.9.2` (a downgrade from the installed 2.13.5) to `2.13.5` (commit `9e157c4`). Verified with `uv pip install`, server/pipeline imports, `ruff check .`, and the eval-module pytest suite (34 passed, 5 skipped). Revisit the openai pin when instructor widens its jiter range. Also updated `DEVELOPMENT.md` Quick Start: it said plain `pip install`, which Ubuntu rejects with PEP 668's "externally-managed-environment"; it now says `uv pip install -r requirements.txt` and `uv run python customizer/server.py`.
