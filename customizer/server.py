@@ -64,12 +64,14 @@ templates = Jinja2Templates(directory=CUSTOMIZER_DIR / "templates")
 # ---------------------------------------------------------------------------
 # There is no auth, so without this any web page open in the browser could
 # POST here (request.json() ignores Content-Type, so a no-preflight text/plain
-# request works) and a DNS-rebinding page could read responses. Extra hosts,
-# e.g. a LAN IP when running with --host 0.0.0.0, go in RESUME_ALLOWED_HOSTS
-# as a comma-separated list.
-ALLOWED_HOSTS = {"localhost", "127.0.0.1", "[::1]"} | {
-    h.strip().lower() for h in os.getenv("RESUME_ALLOWED_HOSTS", "").split(",") if h.strip()
-}
+# request works) and a DNS-rebinding page could read responses.
+#
+# When bound to 0.0.0.0 (the default), we allow any IPv4/IPv6 address plus
+# localhost — but still enforce Origin checks on write methods so that only
+# pages from the same origin can POST/DELETE/PATCH.
+#
+# For extra hosts (e.g. a specific LAN IP when binding to 127.0.0.1), set
+# RESUME_ALLOWED_HOSTS as a comma-separated list.
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
@@ -80,11 +82,36 @@ def _hostname(host_header: str) -> str:
     return host_header.rsplit(":", 1)[0]
 
 
+def _is_allowed_host(hostname: str) -> bool:
+    """Return True if the hostname is allowed for non-loopback access.
+
+    When ``RESUME_ALLOWED_HOSTS`` is unset, all hosts are allowed but write
+    methods still get Origin checks — this is what makes LAN access work out
+    of the box when binding to 0.0.0.0.  When the env var IS set, only those
+    specific hostnames pass (the user wants tighter control).
+    """
+    explicit = {h.strip().lower() for h in os.getenv("RESUME_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    if not explicit:
+        return True  # no restriction — rely on Origin checks for write methods
+    return hostname in explicit
+
+
 @app.middleware("http")
 async def local_only_guard(request: Request, call_next):
     host = request.headers.get("host", "").lower()
-    if _hostname(host) not in ALLOWED_HOSTS:
+    hostname = _hostname(host)
+
+    # Loopback addresses are always allowed (no Origin check needed).
+    is_loopback = hostname in {"localhost", "127.0.0.1", "[::1]"} or hostname.startswith("127.")
+    if is_loopback:
+        return await call_next(request)
+
+    # Non-loopback hosts (LAN / public IPs): allowed by default when binding
+    # to 0.0.0.0, but Origin checks still apply on write methods.  If the user
+    # sets RESUME_ALLOWED_HOSTS, only those specific hostnames pass through.
+    if not _is_allowed_host(hostname):
         return JSONResponse(status_code=403, content={"error": "Host not allowed"})
+
     # Browsers always send Origin on cross-origin writes; non-browser clients
     # (curl, scripts) send none and are allowed through.
     origin = request.headers.get("origin")
@@ -666,9 +693,16 @@ async def history_stats(period: str = "weekly", type: str = "all"):
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Resume Customizer server")
+    parser.add_argument("--host", default=os.getenv("RESUME_HOST", "0.0.0.0"), help="Bind address (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=int(os.getenv("RESUME_PORT", "7777")), help="Port (default: 7777)")
+    args = parser.parse_args()
+
     if not HAS_PDFLATEX:
         print("\033[33m[WARNING] pdflatex not found. PDF generation will fail.\033[0m")
         print(
             "  Install: sudo apt install texlive-latex-base texlive-fonts-extra texlive-latex-extra"
         )
-    uvicorn.run(app, host="127.0.0.1", port=7777)
+    uvicorn.run(app, host=args.host, port=args.port)

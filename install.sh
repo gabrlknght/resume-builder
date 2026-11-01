@@ -315,15 +315,16 @@ if command -v uv &>/dev/null; then
 else
     echo "       ${PYTHON_CMD} customizer/server.py"
 fi
+echo "       (Binds to 0.0.0.0:7777 by default — use --host/--port to customize)"
 echo ""
 echo -e "  ${BOLD}2. Open the UI in your browser:${RESET}"
 echo "       http://localhost:7777"
 echo ""
 echo -e "  ${BOLD}3. (Optional) Change host/port:${RESET}"
 if command -v uv &>/dev/null; then
-    echo "       uv run uvicorn customizer.server:app --host 0.0.0.0 --port 8080"
+    echo "       uv run python customizer/server.py --host 0.0.0.0 --port 8080"
 else
-    echo "       ${PYTHON_CMD} -m uvicorn customizer.server:app --host 0.0.0.0 --port 8080"
+    echo "       ${PYTHON_CMD} customizer/server.py --host 0.0.0.0 --port 8080"
 fi
 echo ""
 
