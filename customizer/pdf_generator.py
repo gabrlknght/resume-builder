@@ -4,7 +4,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-from config import PDF_TEMP_EXTS, PDF_TEMP_TEX_NAME, PROJECT_ROOT, RENDER_SCRIPT
+from config import (
+    PDF_COMPILE_TIMEOUT,
+    PDF_RENDER_TIMEOUT,
+    PDF_TEMP_EXTS,
+    PDF_TEMP_TEX_NAME,
+    PROJECT_ROOT,
+    RENDER_SCRIPT,
+)
 from data_utils import save_json
 
 
@@ -28,19 +35,25 @@ def render_tex_from_data(
             save_json(tmp / filename, data)
 
         # Run render_resume.py
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(RENDER_SCRIPT),
-                "--data-dir",
-                str(tmp),
-                "--output",
-                output_tex_name,
-            ],
-            capture_output=True,
-            text=True,
-            cwd=str(PROJECT_ROOT),
-        )
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(RENDER_SCRIPT),
+                    "--data-dir",
+                    str(tmp),
+                    "--output",
+                    output_tex_name,
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(PROJECT_ROOT),
+                timeout=PDF_RENDER_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            raise PDFGenerationError(
+                f"Template rendering timed out after {PDF_RENDER_TIMEOUT}s"
+            ) from None
 
         tex_file = PROJECT_ROOT / output_tex_name
         if result.returncode != 0 or not tex_file.exists():
@@ -56,13 +69,20 @@ def compile_pdf_from_tex(tex_name: str) -> Path:
 
     -no-shell-escape disables \\write18 outright, even if the TeX distribution
     defaults to restricted or full shell escape.
+    Runs with a timeout to prevent hung processes from blocking indefinitely.
     """
-    result = subprocess.run(
-        ["pdflatex", "-no-shell-escape", "-interaction=nonstopmode", tex_name],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-    )
+    try:
+        result = subprocess.run(
+            ["pdflatex", "-no-shell-escape", "-interaction=nonstopmode", tex_name],
+            capture_output=True,
+            text=True,
+            cwd=str(PROJECT_ROOT),
+            timeout=PDF_COMPILE_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        raise PDFGenerationError(
+            f"pdflatex compilation timed out after {PDF_COMPILE_TIMEOUT}s"
+        ) from None
 
     pdf_file = PROJECT_ROOT / tex_name.replace(".tex", ".pdf")
     if not pdf_file.exists():

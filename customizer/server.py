@@ -9,6 +9,7 @@ Usage:
     python customizer/server.py
 """
 
+import asyncio
 import json
 import os
 import shutil
@@ -35,6 +36,7 @@ from config import (
 )
 from data_utils import load_all_sections, save_all_sections
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -50,6 +52,45 @@ from history_manager import (
     update_hired_status,
 )
 from pdf_generator import PDFGenerationError, generate_pdf
+
+# ---------------------------------------------------------------------------
+# AI concurrency guard — tailor + cover letter share one backend (the local
+# NPU is single-threaded), so only one AI pipeline streams at a time.
+# ---------------------------------------------------------------------------
+_AI_LOCK = asyncio.Lock()
+_AI_BUSY_RESPONSE = {"error": "Another AI generation is already running. Wait for it to finish."}
+
+
+async def _hold_ai_lock(stream):
+    """Hold _AI_LOCK for the whole life of an SSE stream, not just the handler.
+
+    Acquiring inside the generator means the lock is released when the stream
+    finishes or the client disconnects (Starlette closes the generator).
+    """
+    async with _AI_LOCK:
+        async for chunk in stream:
+            yield chunk
+
+
+# ---------------------------------------------------------------------------
+# API-Key Redaction — strip secrets from any nested dict before persistence
+# ---------------------------------------------------------------------------
+_API_KEY_NAMES = {"api_key", "apikey"}  # compared against key.lower()
+
+
+def _redact_api_keys(obj):
+    """Recursively remove API-key fields from a dict (in-place, returns obj)."""
+    if isinstance(obj, dict):
+        keys_to_pop = [k for k in obj if k.lower() in _API_KEY_NAMES]
+        for k in keys_to_pop:
+            obj.pop(k)
+        for v in obj.values():
+            _redact_api_keys(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            _redact_api_keys(item)
+    return obj
+
 
 # ---------------------------------------------------------------------------
 # App Setup
@@ -198,10 +239,15 @@ async def generate(request: Request):
         )
 
     payload = await request.json()
+    # Redact any API-key fields that may have leaked into the payload
+    # before it gets persisted to history as resume_data.json.
+    _redact_api_keys(payload)
     incoming_meta = payload.pop("_meta", {}) or {}
 
     try:
-        pdf_file = generate_pdf(SECTION_FILES, payload)
+        # pdflatex is a blocking subprocess (up to PDF_COMPILE_TIMEOUT); run it
+        # off the event loop so SSE streams and other requests keep moving.
+        pdf_file = await run_in_threadpool(generate_pdf, SECTION_FILES, payload)
     except PDFGenerationError as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -409,8 +455,11 @@ async def tailor(request: Request):
             status_code=500, content={"error": f"Failed to create API client: {str(e)}"}
         )
 
+    if _AI_LOCK.locked():
+        return JSONResponse(status_code=429, content=_AI_BUSY_RESPONSE)
+
     return StreamingResponse(
-        run_pipeline(client, model, jd, data, tone, provider),
+        _hold_ai_lock(run_pipeline(client, model, jd, data, tone, provider)),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -486,16 +535,21 @@ async def cover_letter_endpoint(request: Request):
             content={"error": f"Failed to create API client: {str(e)}"},
         )
 
+    if _AI_LOCK.locked():
+        return JSONResponse(status_code=429, content=_AI_BUSY_RESPONSE)
+
     return StreamingResponse(
-        run_cover_letter_pipeline(
-            client,
-            model,
-            jd,
-            data,
-            prior_letter if prior_letter and prior_letter.strip() else None,
-            tone,
-            provider,
-            extra_facts if extra_facts and extra_facts.strip() else None,
+        _hold_ai_lock(
+            run_cover_letter_pipeline(
+                client,
+                model,
+                jd,
+                data,
+                prior_letter if prior_letter and prior_letter.strip() else None,
+                tone,
+                provider,
+                extra_facts if extra_facts and extra_facts.strip() else None,
+            )
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -512,6 +566,9 @@ async def cl_history_save(request: Request):
     cl_data = payload.get("cover_letter", {})
     if not cl_data:
         return JSONResponse(status_code=400, content={"error": "cover_letter data required"})
+
+    # Redact API-key fields that may have leaked into the cover letter data.
+    _redact_api_keys(cl_data)
 
     try:
         entry_id = save_cover_letter_history(CL_HISTORY_DIR, cl_data)
