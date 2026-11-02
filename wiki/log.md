@@ -6,6 +6,15 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-11-02] update | November security hardening follow-ups
+
+- **AI concurrency:** `/api/tailor` and `/api/cover-letter` share one `asyncio.Lock` (`_AI_LOCK`), acquired inside the SSE generator so it covers the whole stream and releases on finish or disconnect. A second request while one is running gets a 429 with an `error` message the UI already shows. (An earlier draft wrapped `return StreamingResponse(...)` in `async with semaphore`, which releases before streaming starts and did nothing.)
+- **API-key redaction:** `_redact_api_keys()` runs only at persistence points (`/api/generate`, `/api/cl-history/save`). It must not run on `/api/tailor` or `/api/cover-letter`: those read `config.api_key`, and redacting first silently dropped UI-entered keys.
+- **PDF subprocess timeouts:** render 30s and pdflatex 60s (`PDF_RENDER_TIMEOUT` and `PDF_COMPILE_TIMEOUT` in `config.py`). Both raise `PDFGenerationError`. `/api/generate` now calls `generate_pdf` through `run_in_threadpool` so a slow compile doesn't block the event loop.
+- **CSP:** decided against `upgrade-insecure-requests`. The app is served over plain HTTP on loopback or a LAN host (`RESUME_ALLOWED_HOSTS`), and `connect-src` allows `http://localhost:*` model servers. The directive would rewrite those requests to https, which breaks LAN access and Safari, and it gives no protection here.
+
+---
+
 ## [2026-10-12] decision | Strict CSP and data-action dispatcher (ADR-013)
 
 Added a `script-src 'self'` CSP on `/`. To get there: replaced 49 inline `onclick` handlers (21 in `index.html`, 28 generated in `app.js`) with `data-action`/`data-args` attributes and a delegated `ACTIONS` allowlist; moved the settings and theme inline scripts into `app.js`; moved server data into a `type="application/json"` block. Fixed `esc()` to escape quotes, which closes an attribute-injection hole in the old history-table handlers. Verified with ESLint, `ruff check`, and a Playwright run in headless Chromium against a live server, with all writes mocked or blocked: zero CSP violations, and every handler type and pdf.js (in a blob Web Worker) worked.

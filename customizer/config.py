@@ -26,6 +26,10 @@ SECTION_FILES = {
 
 # PDF generation
 HAS_PDFLATEX = shutil.which("pdflatex") is not None
+# Subprocess timeouts (seconds). A one-page resume renders/compiles in ~1-2s;
+# these only exist so a hung process can't pin a worker thread forever.
+PDF_RENDER_TIMEOUT = 30
+PDF_COMPILE_TIMEOUT = 60
 
 # File extensions
 PDF_TEMP_TEX_NAME = "_customizer_tmp.tex"
