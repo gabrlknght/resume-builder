@@ -6,6 +6,21 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-11-24] decision | Review fixes: DNS-rebinding guard, env-key fallback
+
+- **DNS rebinding was open by default.** With `RESUME_ALLOWED_HOSTS` unset, `_is_allowed_host()` returned True for any Host. A rebinding page is same-origin with itself, so the Origin check passed too, and any website could read resume data and drive `/api/tailor`. Now, with no allowlist, only IP literals pass (LAN access via `http://192.168.x.y:7777` still works). Use DNS names by setting `RESUME_ALLOWED_HOSTS`.
+- **Fake loopback:** `hostname.startswith("127.")` let `127.evil.com` skip every check. Loopback is now decided by `ipaddress` parsing.
+- **Env-key fallback regression from `a7e84c2`:** the UI pre-fills each provider's default URL, so the "no base_url" test broke env keys for Cerebras/NVIDIA/Gemini/OpenRouter. That change also overwrote a UI-typed key with the env lookup, so OpenAI with a UI key and no env var returned 400. Now a key typed in the UI always wins. The provider's own default URL counts as the default endpoint. `OPENAI_API_KEY` is used only for the OpenAI endpoint, never sent to another vendor.
+- Restored the cover-letter TXT `Content-Disposition` filename dropped by the `_serve_history_file()` refactor.
+
+## [2026-11-24] update | Dependency refresh + security-audit fixes
+
+- **Dependencies (main `1edeab5`):** FastAPI 0.162→0.165, pydantic 2.14.2→2.14.4, ruff 0.17.3→0.17.6, eslint 10.14→10.15, stylelint 17.16→18.1 + stylelint-config-standard 40→41. openai stays pinned <3 (instructor 1.17.0 caps jiter <0.15). `ruff`, `eslint`, `stylelint`, the eval suite (34 passed), and both dashboards verified live.
+- **Env-key exfiltration closed (`a7e84c2`):** `/api/tailor` and `/api/cover-letter` no longer send env-held `OPENAI_API_KEY`/`{PROVIDER}_API_KEY` to a caller-supplied `base_url` — env fallback now applies only to the provider's default endpoint. Shared `_resolve_ai_request()` replaces the duplicated config-resolution blocks.
+- **PDF temp-file race fixed (`fcebb7b`):** `generate_pdf()` renders to a unique `_customizer_tmp_<uuid>.tex` instead of a shared `_customizer_tmp.tex`, so concurrent `/api/generate` requests no longer clobber each other's files mid-compile. `PDF_TEMP_TEX_NAME` removed.
+- **Hardening fixes (`26eb620`):** pagination clamped (page ≥ 1, limit 1..100) on both dashboards; history-table score/metrics/href values escaped; dead `setAttribute("onclick")` removed from `toggleHired` and the delegated `data-args` refreshed so the cell toggles back. Build workflow pins `jinja2==3.1.6`.
+- **Refactor (`034ac95`):** server-side `_paginated()`/`_serve_history_file()` helpers; `app.js` cell builders (`scoreCellHtml`/`metricsCellHtml`/`modelInfoCellHtml`/`historyPaginationHtml`) shared by both history tables. Net -76 lines.
+
 ## [2026-11-02] update | November security hardening follow-ups
 
 - **AI concurrency:** `/api/tailor` and `/api/cover-letter` share one `asyncio.Lock` (`_AI_LOCK`), acquired inside the SSE generator so it covers the whole stream and releases on finish or disconnect. A second request while one is running gets a 429 with an `error` message the UI already shows. (An earlier draft wrapped `return StreamingResponse(...)` in `async with semaphore`, which releases before streaming starts and did nothing.)

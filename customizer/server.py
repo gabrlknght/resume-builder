@@ -10,6 +10,7 @@ Usage:
 """
 
 import asyncio
+import ipaddress
 import json
 import os
 import shutil
@@ -93,6 +94,77 @@ def _redact_api_keys(obj):
 
 
 # ---------------------------------------------------------------------------
+# AI request resolution — shared by the tailor + cover-letter endpoints
+# ---------------------------------------------------------------------------
+def _resolve_ai_request(payload: dict):
+    """Validate the shared AI request payload.
+
+    Returns a dict {provider, model, base_url, api_key, tone, jd}, or a
+    JSONResponse (400) describing the problem.
+
+    Env-var key fallback is only allowed for a provider's default endpoint.
+    When the caller supplies a custom base_url, the request must carry its
+    own explicit API key — otherwise the server would happily send its own
+    env-held key to an arbitrary URL the caller chose.
+    """
+    from pipeline import PROVIDER_CONFIGS, resolve_ollama_model
+
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"error": "Invalid payload"})
+
+    jd = payload.get("jd", "")
+    config = payload.get("config", {})
+    if not isinstance(jd, str) or not jd.strip():
+        return JSONResponse(status_code=400, content={"error": "Job description is required."})
+    if not isinstance(config, dict):
+        return JSONResponse(status_code=400, content={"error": "Invalid config"})
+
+    provider = config.get("provider", "openai")
+    model = config.get("model", "gpt-4o-mini")
+    base_url = str(config.get("base_url") or "").strip()
+    api_key = str(config.get("api_key") or "").strip()
+    tone = payload.get("tone", config.get("tone", "professional"))
+
+    if provider == "ollama":
+        if base_url:
+            base_url = base_url.rstrip("/")
+            if not base_url.endswith("/v1"):
+                base_url += "/v1"
+        model = resolve_ollama_model(model)
+    elif provider == "llamacpp":
+        pass
+    else:
+        key_provider = "openrouter" if provider == "openrouter_meta" else provider
+        default_url = (PROVIDER_CONFIGS.get(key_provider, {}).get("base_url") or "").rstrip("/")
+        # The UI pre-fills each provider's default URL, so treat that as the
+        # default endpoint too — otherwise env keys only ever work for OpenAI.
+        is_default_endpoint = base_url.rstrip("/") in {"", default_url}
+        if is_default_endpoint and not api_key:
+            # Default endpoint: fall back to that provider's env-var key. Only
+            # OpenAI-endpoint requests may use OPENAI_API_KEY, so one vendor's
+            # key is never sent to another vendor.
+            api_key = os.getenv(f"{key_provider.upper()}_API_KEY", "")
+            if not api_key and key_provider in {"openai", "custom"}:
+                api_key = os.getenv("OPENAI_API_KEY", "")
+        if not api_key:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
+                },
+            )
+
+    return {
+        "provider": provider,
+        "model": model,
+        "base_url": base_url or "",
+        "api_key": api_key,
+        "tone": tone,
+        "jd": jd,
+    }
+
+
+# ---------------------------------------------------------------------------
 # App Setup
 # ---------------------------------------------------------------------------
 app = FastAPI(title="Resume Customizer")
@@ -123,17 +195,34 @@ def _hostname(host_header: str) -> str:
     return host_header.rsplit(":", 1)[0]
 
 
+def _ip_literal(hostname: str):
+    """Parse a Host-header hostname as an IP address, or return None for a DNS name."""
+    try:
+        return ipaddress.ip_address(hostname.strip("[]"))
+    except ValueError:
+        return None
+
+
+def _is_loopback_host(hostname: str) -> bool:
+    # Parse rather than prefix-match: "127.evil.com" is a DNS name an attacker
+    # can rebind to 127.0.0.1, not a loopback address.
+    if hostname == "localhost":
+        return True
+    ip = _ip_literal(hostname)
+    return ip is not None and ip.is_loopback
+
+
 def _is_allowed_host(hostname: str) -> bool:
     """Return True if the hostname is allowed for non-loopback access.
 
-    When ``RESUME_ALLOWED_HOSTS`` is unset, all hosts are allowed but write
-    methods still get Origin checks — this is what makes LAN access work out
-    of the box when binding to 0.0.0.0.  When the env var IS set, only those
-    specific hostnames pass (the user wants tighter control).
+    When ``RESUME_ALLOWED_HOSTS`` is unset, only IP literals pass (LAN access
+    via http://192.168.x.y:7777 works out of the box). DNS names are refused:
+    a DNS-rebinding page is same-origin with itself, so the Origin check alone
+    would not stop it. When the env var IS set, only those hostnames pass.
     """
     explicit = {h.strip().lower() for h in os.getenv("RESUME_ALLOWED_HOSTS", "").split(",") if h.strip()}
     if not explicit:
-        return True  # no restriction — rely on Origin checks for write methods
+        return _ip_literal(hostname) is not None
     return hostname in explicit
 
 
@@ -143,8 +232,7 @@ async def local_only_guard(request: Request, call_next):
     hostname = _hostname(host)
 
     # Loopback addresses are always allowed (no Origin check needed).
-    is_loopback = hostname in {"localhost", "127.0.0.1", "[::1]"} or hostname.startswith("127.")
-    if is_loopback:
+    if _is_loopback_host(hostname):
         return await call_next(request)
 
     # Non-loopback hosts (LAN / public IPs): allowed by default when binding
@@ -316,22 +404,40 @@ async def save(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# History route helpers
+# ---------------------------------------------------------------------------
+def _paginated(history_dir, page: int, limit: int) -> dict:
+    page = max(1, page)
+    limit = min(100, max(1, limit))
+    entries = scan_history_entries(history_dir)
+    start = (page - 1) * limit
+    return {
+        "entries": entries[start : start + limit],
+        "total": len(entries),
+        "page": page,
+        "limit": limit,
+    }
+
+
+def _serve_history_file(
+    history_dir, file_path: str, suffix: str, media_type: str, as_download: bool = False
+):
+    target = (history_dir / file_path).resolve()
+    if not is_within(target, history_dir):
+        return JSONResponse(status_code=400, content={"error": "Invalid path"})
+    if not target.exists() or target.suffix != suffix:
+        return JSONResponse(status_code=404, content={"error": "File not found"})
+    filename = target.name if as_download else None
+    return FileResponse(path=str(target), media_type=media_type, filename=filename)
+
+
+# ---------------------------------------------------------------------------
 # Resume History Routes
 # ---------------------------------------------------------------------------
 @app.get("/api/history/dashboard")
 async def history_dashboard(page: int = 1, limit: int = 25):
     """Return paginated history entries, newest first."""
-    entries = scan_history_entries(HISTORY_DIR)
-    total = len(entries)
-    start = (page - 1) * limit
-    return JSONResponse(
-        {
-            "entries": entries[start : start + limit],
-            "total": total,
-            "page": page,
-            "limit": limit,
-        }
-    )
+    return JSONResponse(_paginated(HISTORY_DIR, page, limit))
 
 
 @app.post("/api/history/restore/{entry_id:path}")
@@ -384,12 +490,7 @@ async def history_hired(request: Request):
 @app.get("/api/history/file/{file_path:path}")
 async def history_file(file_path: str):
     """Serve a PDF file from the history directory."""
-    target = (HISTORY_DIR / file_path).resolve()
-    if not is_within(target, HISTORY_DIR):
-        return JSONResponse(status_code=400, content={"error": "Invalid path"})
-    if not target.exists() or target.suffix != ".pdf":
-        return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(path=str(target), media_type="application/pdf")
+    return _serve_history_file(HISTORY_DIR, file_path, ".pdf", "application/pdf")
 
 
 # ---------------------------------------------------------------------------
@@ -398,58 +499,16 @@ async def history_file(file_path: str):
 @app.post("/api/tailor")
 async def tailor(request: Request):
     """Multi-stage tailoring pipeline — streams SSE events."""
-    import os
-
-    from pipeline import get_instructor_client, resolve_ollama_model, run_pipeline
+    from pipeline import get_instructor_client, run_pipeline
 
     payload = await request.json()
-    jd = payload.get("jd", "")
-    config = payload.get("config", {})
+    resolved = _resolve_ai_request(payload)
+    if isinstance(resolved, JSONResponse):
+        return resolved
     data = payload.get("data", {})
 
-    if not jd.strip():
-        return JSONResponse(status_code=400, content={"error": "Job description is required."})
-
-    provider = config.get("provider", "openai")
-    model = config.get("model", "gpt-4o-mini")
-    base_url = config.get("base_url", "").strip()
-    api_key = config.get("api_key", "").strip()
-    tone = payload.get("tone", config.get("tone", "professional"))
-
-    # Resolve API key from environment if not provided
-    if not api_key:
-        env_key = (
-            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
-        )
-        api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
-
-    # Ollama-specific setup
-    if provider == "ollama":
-        if base_url:
-            base_url = base_url.rstrip("/")
-            if not base_url.endswith("/v1"):
-                base_url += "/v1"
-        model = resolve_ollama_model(model)
-    # llama.cpp: no /v1 normalization (frontend handles it), no API key required
-    elif provider == "llamacpp":
-        pass
-    elif not api_key:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
-            },
-        )
-
     try:
-        client = get_instructor_client(
-            {
-                "provider": provider,
-                "model": model,
-                "base_url": base_url or "",
-                "api_key": api_key,
-            }
-        )
+        client = get_instructor_client(resolved)
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"error": f"Failed to create API client: {str(e)}"}
@@ -459,7 +518,7 @@ async def tailor(request: Request):
         return JSONResponse(status_code=429, content=_AI_BUSY_RESPONSE)
 
     return StreamingResponse(
-        _hold_ai_lock(run_pipeline(client, model, jd, data, tone, provider)),
+        _hold_ai_lock(run_pipeline(client, resolved["model"], resolved["jd"], data, resolved["tone"], resolved["provider"])),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -471,64 +530,19 @@ async def tailor(request: Request):
 @app.post("/api/cover-letter")
 async def cover_letter_endpoint(request: Request):
     """Cover letter generation pipeline — streams SSE events."""
-    import os
-
-    from pipeline import (
-        get_instructor_client,
-        resolve_ollama_model,
-        run_cover_letter_pipeline,
-    )
+    from pipeline import get_instructor_client, run_cover_letter_pipeline
 
     payload = await request.json()
-    jd = payload.get("jd", "")
+    resolved = _resolve_ai_request(payload)
+    if isinstance(resolved, JSONResponse):
+        return resolved
+    jd = resolved["jd"]
     prior_letter = payload.get("prior_letter", "")
     extra_facts = payload.get("extra_facts", "")
-    config = payload.get("config", {})
     data = payload.get("data", {})
 
-    if not jd.strip():
-        return JSONResponse(status_code=400, content={"error": "Job description is required."})
-
-    provider = config.get("provider", "openai")
-    model = config.get("model", "gpt-4o-mini")
-    base_url = config.get("base_url", "").strip()
-    api_key = config.get("api_key", "").strip()
-    tone = payload.get("tone", config.get("tone", "professional"))
-
-    # Resolve API key from environment if not provided
-    if not api_key:
-        env_key = (
-            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
-        )
-        api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
-
-    # Ollama-specific setup
-    if provider == "ollama":
-        if base_url:
-            base_url = base_url.rstrip("/")
-            if not base_url.endswith("/v1"):
-                base_url += "/v1"
-        model = resolve_ollama_model(model)
-    # llama.cpp: no /v1 normalization (frontend handles it), no API key required
-    elif provider == "llamacpp":
-        pass
-    elif not api_key:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
-            },
-        )
-
     try:
-        client = get_instructor_client(
-            {
-                "provider": provider,
-                "model": model,
-                "base_url": base_url or "",
-                "api_key": api_key,
-            }
-        )
+        client = get_instructor_client(resolved)
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -542,12 +556,12 @@ async def cover_letter_endpoint(request: Request):
         _hold_ai_lock(
             run_cover_letter_pipeline(
                 client,
-                model,
+                resolved["model"],
                 jd,
                 data,
                 prior_letter if prior_letter and prior_letter.strip() else None,
-                tone,
-                provider,
+                resolved["tone"],
+                resolved["provider"],
                 extra_facts if extra_facts and extra_facts.strip() else None,
             )
         ),
@@ -583,17 +597,7 @@ async def cl_history_save(request: Request):
 @app.get("/api/cl-history/dashboard")
 async def cl_history_dashboard(page: int = 1, limit: int = 25):
     """Return paginated cover letter history entries, newest first."""
-    entries = scan_history_entries(CL_HISTORY_DIR)
-    total = len(entries)
-    start = (page - 1) * limit
-    return JSONResponse(
-        {
-            "entries": entries[start : start + limit],
-            "total": total,
-            "page": page,
-            "limit": limit,
-        }
-    )
+    return JSONResponse(_paginated(CL_HISTORY_DIR, page, limit))
 
 
 @app.post("/api/cl-history/restore/{entry_id:path}")
@@ -611,12 +615,7 @@ async def cl_history_restore(entry_id: str):
 @app.get("/api/cl-history/file/{file_path:path}")
 async def cl_history_file(file_path: str):
     """Serve a cover letter .txt file from the cl-history directory."""
-    target = (CL_HISTORY_DIR / file_path).resolve()
-    if not is_within(target, CL_HISTORY_DIR):
-        return JSONResponse(status_code=400, content={"error": "Invalid path"})
-    if not target.exists() or target.suffix != ".txt":
-        return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(path=str(target), media_type="text/plain", filename=target.name)
+    return _serve_history_file(CL_HISTORY_DIR, file_path, ".txt", "text/plain", as_download=True)
 
 
 @app.delete("/api/cl-history/entry")
