@@ -1727,40 +1727,12 @@ function renderClHistoryTable(data) {
             const ts = entry.timestamp || "";
             const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
             const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
-            const score = entry.relevance_score;
-            let scoreHtml = "—";
-            if (score !== null && score !== undefined) {
-                const cls =
-                    score >= 7
-                        ? "score-high"
-                        : score >= 4
-                          ? "score-mid"
-                          : "score-low";
-                scoreHtml = `<span class="history-score ${cls}">${esc(score)}/10</span>`;
-            }
-            const timing = entry.timing;
-            let metricsHtml = "—";
-            if (timing && timing.total_tokens != null) {
-                const tok = timing.total_tokens;
-                const secs =
-                    timing.elapsed_seconds != null
-                        ? timing.elapsed_seconds + "s"
-                        : "";
-                const rate =
-                    timing.elapsed_seconds && timing.elapsed_seconds > 0
-                        ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
-                        : "";
-                metricsHtml = `<span title="tokens">🔢</span> ${esc(tok)}${secs ? `<br/><span title="time">⏱</span> ${esc(secs)}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${esc(rate)}` : ""}`;
-            }
+            const scoreHtml = scoreCellHtml(entry.relevance_score);
+            const metricsHtml = metricsCellHtml(entry.timing);
             const pdfLink = `<button type="button" class="btn-secondary btn-small" data-action="printClHistoryEntry" data-args="${esc(JSON.stringify([entry.id]))}" title="Open print/PDF dialog">PDF</button>`;
             const txtLink = `<a href="${esc(`/api/cl-history/file/${entry.id}/cover_letter.txt`)}" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
 
-            const modelInfo =
-                entry.model && entry.provider
-                    ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
-                    : entry.model
-                      ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
-                      : "—";
+            const modelInfo = modelInfoCellHtml(entry);
 
             return `<tr>
             <td style="white-space:nowrap;">
@@ -1784,17 +1756,7 @@ function renderClHistoryTable(data) {
         })
         .join("");
 
-    const totalPages = Math.ceil(data.total / data.limit);
-    const paginationHtml =
-        totalPages > 1
-            ? `
-        <div class="history-pagination">
-            <span>${data.total} total entries</span>
-            <button type="button" class="btn-secondary btn-small" data-action="loadClHistoryDashboard" data-args="[${clHistoryPage - 1}]" ${clHistoryPage <= 1 ? "disabled" : ""}>← PREV</button>
-            <span style="color:var(--fg);">${clHistoryPage} / ${totalPages}</span>
-            <button type="button" class="btn-secondary btn-small" data-action="loadClHistoryDashboard" data-args="[${clHistoryPage + 1}]" ${clHistoryPage >= totalPages ? "disabled" : ""}>NEXT →</button>
-        </div>`
-            : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
+    const paginationHtml = historyPaginationHtml(data.total, data.limit, clHistoryPage, "loadClHistoryDashboard");
 
     container.innerHTML = `
         <div style="overflow-x:auto;">
@@ -1885,6 +1847,45 @@ async function loadHistoryDashboard(page) {
     }
 }
 
+// ── Shared history-table cell builders ────────────────────────────────────
+function scoreCellHtml(score) {
+    if (score === null || score === undefined) return "—";
+    const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
+    return `<span class="history-score ${cls}">${esc(score)}/10</span>`;
+}
+
+function metricsCellHtml(timing) {
+    if (!timing || timing.total_tokens == null) return "—";
+    const tok = timing.total_tokens;
+    const secs = timing.elapsed_seconds != null ? timing.elapsed_seconds + "s" : "";
+    const rate =
+        timing.elapsed_seconds && timing.elapsed_seconds > 0
+            ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
+            : "";
+    return `<span title="tokens">🔢</span> ${esc(tok)}${secs ? `<br/><span title="time">⏱</span> ${esc(secs)}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${esc(rate)}` : ""}`;
+}
+
+function modelInfoCellHtml(entry) {
+    return entry.model && entry.provider
+        ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
+        : entry.model
+          ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
+          : "—";
+}
+
+function historyPaginationHtml(total, limit, page, actionFn) {
+    const totalPages = Math.ceil(total / limit);
+    return totalPages > 1
+        ? `
+        <div class="history-pagination">
+            <span>${total} total entries</span>
+            <button type="button" class="btn-secondary btn-small" data-action="${actionFn}" data-args="[${page - 1}]" ${page <= 1 ? "disabled" : ""}>← PREV</button>
+            <span style="color:var(--fg);">${page} / ${totalPages}</span>
+            <button type="button" class="btn-secondary btn-small" data-action="${actionFn}" data-args="[${page + 1}]" ${page >= totalPages ? "disabled" : ""}>NEXT →</button>
+        </div>`
+        : `<div class="history-pagination"><span>${total} entr${total === 1 ? "y" : "ies"}</span></div>`;
+}
+
 function renderHistoryTable(data) {
     const container = document.getElementById("history-dashboard");
     if (!data.entries || data.entries.length === 0) {
@@ -1897,43 +1898,15 @@ function renderHistoryTable(data) {
             const ts = entry.timestamp || "";
             const datePart = ts ? ts.replace("T", " ").slice(0, 10) : "—";
             const timePart = ts ? ts.replace("T", " ").slice(11, 16) : "";
-            const score = entry.match_score;
-            let scoreHtml = "—";
-            if (score !== null && score !== undefined) {
-                const cls =
-                    score >= 7
-                        ? "score-high"
-                        : score >= 4
-                          ? "score-mid"
-                          : "score-low";
-                scoreHtml = `<span class="history-score ${cls}">${esc(score)}/10</span>`;
-            }
+            const scoreHtml = scoreCellHtml(entry.match_score);
             const hiredClass = entry.hired ? "hired-yes" : "hired-no";
             const hiredLabel = entry.hired ? "✓ YES" : "✗ NO";
-            const timing = entry.timing;
-            let metricsHtml = "—";
-            if (timing && timing.total_tokens != null) {
-                const tok = timing.total_tokens;
-                const secs =
-                    timing.elapsed_seconds != null
-                        ? timing.elapsed_seconds + "s"
-                        : "";
-                const rate =
-                    timing.elapsed_seconds && timing.elapsed_seconds > 0
-                        ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
-                        : "";
-                metricsHtml = `<span title="tokens">🔢</span> ${esc(tok)}${secs ? `<br/><span title="time">⏱</span> ${esc(secs)}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${esc(rate)}` : ""}`;
-            }
+            const metricsHtml = metricsCellHtml(entry.timing);
             const pdfLink = entry.pdf_filename
                 ? `<a href="${esc(`/api/history/file/${entry.id}/${entry.pdf_filename}`)}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
                 : "—";
 
-            const modelInfo =
-                entry.model && entry.provider
-                    ? `<strong>${esc(entry.model)}</strong><br>${esc(entry.provider)}`
-                    : entry.model
-                      ? `<strong>${esc(entry.model)}</strong><br><span style="color:var(--muted);">—</span>`
-                      : "—";
+            const modelInfo = modelInfoCellHtml(entry);
 
             return `<tr>
             <td style="white-space:nowrap;">
@@ -1957,17 +1930,7 @@ function renderHistoryTable(data) {
         })
         .join("");
 
-    const totalPages = Math.ceil(data.total / data.limit);
-    const paginationHtml =
-        totalPages > 1
-            ? `
-        <div class="history-pagination">
-            <span>${data.total} total entries</span>
-            <button type="button" class="btn-secondary btn-small" data-action="loadHistoryDashboard" data-args="[${historyPage - 1}]" ${historyPage <= 1 ? "disabled" : ""}>← PREV</button>
-            <span style="color:var(--fg);">${historyPage} / ${totalPages}</span>
-            <button type="button" class="btn-secondary btn-small" data-action="loadHistoryDashboard" data-args="[${historyPage + 1}]" ${historyPage >= totalPages ? "disabled" : ""}>NEXT →</button>
-        </div>`
-            : `<div class="history-pagination"><span>${data.total} entr${data.total === 1 ? "y" : "ies"}</span></div>`;
+    const paginationHtml = historyPaginationHtml(data.total, data.limit, historyPage, "loadHistoryDashboard");
 
     container.innerHTML = `
         <div style="overflow-x:auto;">

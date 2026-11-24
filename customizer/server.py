@@ -385,24 +385,37 @@ async def save(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# History route helpers
+# ---------------------------------------------------------------------------
+def _paginated(history_dir, page: int, limit: int) -> dict:
+    page = max(1, page)
+    limit = min(100, max(1, limit))
+    entries = scan_history_entries(history_dir)
+    start = (page - 1) * limit
+    return {
+        "entries": entries[start : start + limit],
+        "total": len(entries),
+        "page": page,
+        "limit": limit,
+    }
+
+
+def _serve_history_file(history_dir, file_path: str, suffix: str, media_type: str):
+    target = (history_dir / file_path).resolve()
+    if not is_within(target, history_dir):
+        return JSONResponse(status_code=400, content={"error": "Invalid path"})
+    if not target.exists() or target.suffix != suffix:
+        return JSONResponse(status_code=404, content={"error": "File not found"})
+    return FileResponse(path=str(target), media_type=media_type)
+
+
+# ---------------------------------------------------------------------------
 # Resume History Routes
 # ---------------------------------------------------------------------------
 @app.get("/api/history/dashboard")
 async def history_dashboard(page: int = 1, limit: int = 25):
     """Return paginated history entries, newest first."""
-    page = max(1, page)
-    limit = min(100, max(1, limit))
-    entries = scan_history_entries(HISTORY_DIR)
-    total = len(entries)
-    start = (page - 1) * limit
-    return JSONResponse(
-        {
-            "entries": entries[start : start + limit],
-            "total": total,
-            "page": page,
-            "limit": limit,
-        }
-    )
+    return JSONResponse(_paginated(HISTORY_DIR, page, limit))
 
 
 @app.post("/api/history/restore/{entry_id:path}")
@@ -455,12 +468,7 @@ async def history_hired(request: Request):
 @app.get("/api/history/file/{file_path:path}")
 async def history_file(file_path: str):
     """Serve a PDF file from the history directory."""
-    target = (HISTORY_DIR / file_path).resolve()
-    if not is_within(target, HISTORY_DIR):
-        return JSONResponse(status_code=400, content={"error": "Invalid path"})
-    if not target.exists() or target.suffix != ".pdf":
-        return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(path=str(target), media_type="application/pdf")
+    return _serve_history_file(HISTORY_DIR, file_path, ".pdf", "application/pdf")
 
 
 # ---------------------------------------------------------------------------
@@ -567,19 +575,7 @@ async def cl_history_save(request: Request):
 @app.get("/api/cl-history/dashboard")
 async def cl_history_dashboard(page: int = 1, limit: int = 25):
     """Return paginated cover letter history entries, newest first."""
-    page = max(1, page)
-    limit = min(100, max(1, limit))
-    entries = scan_history_entries(CL_HISTORY_DIR)
-    total = len(entries)
-    start = (page - 1) * limit
-    return JSONResponse(
-        {
-            "entries": entries[start : start + limit],
-            "total": total,
-            "page": page,
-            "limit": limit,
-        }
-    )
+    return JSONResponse(_paginated(CL_HISTORY_DIR, page, limit))
 
 
 @app.post("/api/cl-history/restore/{entry_id:path}")
@@ -597,12 +593,7 @@ async def cl_history_restore(entry_id: str):
 @app.get("/api/cl-history/file/{file_path:path}")
 async def cl_history_file(file_path: str):
     """Serve a cover letter .txt file from the cl-history directory."""
-    target = (CL_HISTORY_DIR / file_path).resolve()
-    if not is_within(target, CL_HISTORY_DIR):
-        return JSONResponse(status_code=400, content={"error": "Invalid path"})
-    if not target.exists() or target.suffix != ".txt":
-        return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(path=str(target), media_type="text/plain", filename=target.name)
+    return _serve_history_file(CL_HISTORY_DIR, file_path, ".txt", "text/plain")
 
 
 @app.delete("/api/cl-history/entry")
