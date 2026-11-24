@@ -32,5 +32,4 @@ PDF_RENDER_TIMEOUT = 30
 PDF_COMPILE_TIMEOUT = 60
 
 # File extensions
-PDF_TEMP_TEX_NAME = "_customizer_tmp.tex"
 PDF_TEMP_EXTS = (".tex", ".aux", ".log", ".out")

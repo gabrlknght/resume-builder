@@ -2,13 +2,13 @@
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 from config import (
     PDF_COMPILE_TIMEOUT,
     PDF_RENDER_TIMEOUT,
     PDF_TEMP_EXTS,
-    PDF_TEMP_TEX_NAME,
     PROJECT_ROOT,
     RENDER_SCRIPT,
 )
@@ -23,7 +23,7 @@ class PDFGenerationError(Exception):
 def render_tex_from_data(
     section_files: dict,
     section_data: dict,
-    output_tex_name: str = PDF_TEMP_TEX_NAME,
+    output_tex_name: str,
 ) -> Path:
     """Render resume.tex from JSON data using render_resume.py."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -105,9 +105,13 @@ def cleanup_tex_files(tex_name: str) -> None:
 def generate_pdf(
     section_files: dict,
     section_data: dict,
-    tex_name: str = PDF_TEMP_TEX_NAME,
 ) -> Path:
-    """Full PDF generation pipeline: render TeX, compile, cleanup."""
+    """Full PDF generation pipeline: render TeX, compile, cleanup.
+
+    Each call renders to a unique temp TeX file — a shared name would let
+    concurrent /api/generate requests clobber each other's files mid-compile.
+    """
+    tex_name = f"_customizer_tmp_{uuid.uuid4().hex[:12]}.tex"
     try:
         render_tex_from_data(section_files, section_data, tex_name)
         pdf_file = compile_pdf_from_tex(tex_name)
