@@ -10,6 +10,7 @@ Usage:
 """
 
 import asyncio
+import ipaddress
 import json
 import os
 import shutil
@@ -95,10 +96,6 @@ def _redact_api_keys(obj):
 # ---------------------------------------------------------------------------
 # AI request resolution — shared by the tailor + cover-letter endpoints
 # ---------------------------------------------------------------------------
-# Providers that run fully local and need no API key.
-NO_KEY_PROVIDERS = {"ollama", "llamacpp"}
-
-
 def _resolve_ai_request(payload: dict):
     """Validate the shared AI request payload.
 
@@ -110,7 +107,7 @@ def _resolve_ai_request(payload: dict):
     own explicit API key — otherwise the server would happily send its own
     env-held key to an arbitrary URL the caller chose.
     """
-    from pipeline import resolve_ollama_model
+    from pipeline import PROVIDER_CONFIGS, resolve_ollama_model
 
     if not isinstance(payload, dict):
         return JSONResponse(status_code=400, content={"error": "Invalid payload"})
@@ -124,8 +121,8 @@ def _resolve_ai_request(payload: dict):
 
     provider = config.get("provider", "openai")
     model = config.get("model", "gpt-4o-mini")
-    base_url = config.get("base_url", "").strip()
-    api_key = config.get("api_key", "").strip()
+    base_url = str(config.get("base_url") or "").strip()
+    api_key = str(config.get("api_key") or "").strip()
     tone = payload.get("tone", config.get("tone", "professional"))
 
     if provider == "ollama":
@@ -137,12 +134,18 @@ def _resolve_ai_request(payload: dict):
     elif provider == "llamacpp":
         pass
     else:
-        if not base_url:
-            # Default endpoint: fall back to env-var keys.
-            env_key = (
-                "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
-            )
-            api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
+        key_provider = "openrouter" if provider == "openrouter_meta" else provider
+        default_url = (PROVIDER_CONFIGS.get(key_provider, {}).get("base_url") or "").rstrip("/")
+        # The UI pre-fills each provider's default URL, so treat that as the
+        # default endpoint too — otherwise env keys only ever work for OpenAI.
+        is_default_endpoint = base_url.rstrip("/") in {"", default_url}
+        if is_default_endpoint and not api_key:
+            # Default endpoint: fall back to that provider's env-var key. Only
+            # OpenAI-endpoint requests may use OPENAI_API_KEY, so one vendor's
+            # key is never sent to another vendor.
+            api_key = os.getenv(f"{key_provider.upper()}_API_KEY", "")
+            if not api_key and key_provider in {"openai", "custom"}:
+                api_key = os.getenv("OPENAI_API_KEY", "")
         if not api_key:
             return JSONResponse(
                 status_code=400,
@@ -192,17 +195,34 @@ def _hostname(host_header: str) -> str:
     return host_header.rsplit(":", 1)[0]
 
 
+def _ip_literal(hostname: str):
+    """Parse a Host-header hostname as an IP address, or return None for a DNS name."""
+    try:
+        return ipaddress.ip_address(hostname.strip("[]"))
+    except ValueError:
+        return None
+
+
+def _is_loopback_host(hostname: str) -> bool:
+    # Parse rather than prefix-match: "127.evil.com" is a DNS name an attacker
+    # can rebind to 127.0.0.1, not a loopback address.
+    if hostname == "localhost":
+        return True
+    ip = _ip_literal(hostname)
+    return ip is not None and ip.is_loopback
+
+
 def _is_allowed_host(hostname: str) -> bool:
     """Return True if the hostname is allowed for non-loopback access.
 
-    When ``RESUME_ALLOWED_HOSTS`` is unset, all hosts are allowed but write
-    methods still get Origin checks — this is what makes LAN access work out
-    of the box when binding to 0.0.0.0.  When the env var IS set, only those
-    specific hostnames pass (the user wants tighter control).
+    When ``RESUME_ALLOWED_HOSTS`` is unset, only IP literals pass (LAN access
+    via http://192.168.x.y:7777 works out of the box). DNS names are refused:
+    a DNS-rebinding page is same-origin with itself, so the Origin check alone
+    would not stop it. When the env var IS set, only those hostnames pass.
     """
     explicit = {h.strip().lower() for h in os.getenv("RESUME_ALLOWED_HOSTS", "").split(",") if h.strip()}
     if not explicit:
-        return True  # no restriction — rely on Origin checks for write methods
+        return _ip_literal(hostname) is not None
     return hostname in explicit
 
 
@@ -212,8 +232,7 @@ async def local_only_guard(request: Request, call_next):
     hostname = _hostname(host)
 
     # Loopback addresses are always allowed (no Origin check needed).
-    is_loopback = hostname in {"localhost", "127.0.0.1", "[::1]"} or hostname.startswith("127.")
-    if is_loopback:
+    if _is_loopback_host(hostname):
         return await call_next(request)
 
     # Non-loopback hosts (LAN / public IPs): allowed by default when binding
@@ -400,13 +419,16 @@ def _paginated(history_dir, page: int, limit: int) -> dict:
     }
 
 
-def _serve_history_file(history_dir, file_path: str, suffix: str, media_type: str):
+def _serve_history_file(
+    history_dir, file_path: str, suffix: str, media_type: str, as_download: bool = False
+):
     target = (history_dir / file_path).resolve()
     if not is_within(target, history_dir):
         return JSONResponse(status_code=400, content={"error": "Invalid path"})
     if not target.exists() or target.suffix != suffix:
         return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(path=str(target), media_type=media_type)
+    filename = target.name if as_download else None
+    return FileResponse(path=str(target), media_type=media_type, filename=filename)
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +615,7 @@ async def cl_history_restore(entry_id: str):
 @app.get("/api/cl-history/file/{file_path:path}")
 async def cl_history_file(file_path: str):
     """Serve a cover letter .txt file from the cl-history directory."""
-    return _serve_history_file(CL_HISTORY_DIR, file_path, ".txt", "text/plain")
+    return _serve_history_file(CL_HISTORY_DIR, file_path, ".txt", "text/plain", as_download=True)
 
 
 @app.delete("/api/cl-history/entry")

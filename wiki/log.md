@@ -6,6 +6,13 @@ Grep for recent activity: `grep "^## \[" wiki/log.md | tail -10`
 
 ---
 
+## [2026-11-24] decision | Review fixes: DNS-rebinding guard, env-key fallback
+
+- **DNS rebinding was open by default.** With `RESUME_ALLOWED_HOSTS` unset, `_is_allowed_host()` returned True for any Host. A rebinding page is same-origin with itself, so the Origin check passed too, and any website could read resume data and drive `/api/tailor`. Now, with no allowlist, only IP literals pass (LAN access via `http://192.168.x.y:7777` still works). Use DNS names by setting `RESUME_ALLOWED_HOSTS`.
+- **Fake loopback:** `hostname.startswith("127.")` let `127.evil.com` skip every check. Loopback is now decided by `ipaddress` parsing.
+- **Env-key fallback regression from `a7e84c2`:** the UI pre-fills each provider's default URL, so the "no base_url" test broke env keys for Cerebras/NVIDIA/Gemini/OpenRouter. That change also overwrote a UI-typed key with the env lookup, so OpenAI with a UI key and no env var returned 400. Now a key typed in the UI always wins. The provider's own default URL counts as the default endpoint. `OPENAI_API_KEY` is used only for the OpenAI endpoint, never sent to another vendor.
+- Restored the cover-letter TXT `Content-Disposition` filename dropped by the `_serve_history_file()` refactor.
+
 ## [2026-11-24] update | Dependency refresh + security-audit fixes
 
 - **Dependencies (main `1edeab5`):** FastAPI 0.162→0.165, pydantic 2.14.2→2.14.4, ruff 0.17.3→0.17.6, eslint 10.14→10.15, stylelint 17.16→18.1 + stylelint-config-standard 40→41. openai stays pinned <3 (instructor 1.17.0 caps jiter <0.15). `ruff`, `eslint`, `stylelint`, the eval suite (34 passed), and both dashboards verified live.
