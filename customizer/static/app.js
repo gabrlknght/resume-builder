@@ -1736,7 +1736,7 @@ function renderClHistoryTable(data) {
                         : score >= 4
                           ? "score-mid"
                           : "score-low";
-                scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
+                scoreHtml = `<span class="history-score ${cls}">${esc(score)}/10</span>`;
             }
             const timing = entry.timing;
             let metricsHtml = "—";
@@ -1750,10 +1750,10 @@ function renderClHistoryTable(data) {
                     timing.elapsed_seconds && timing.elapsed_seconds > 0
                         ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
                         : "";
-                metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ""}`;
+                metricsHtml = `<span title="tokens">🔢</span> ${esc(tok)}${secs ? `<br/><span title="time">⏱</span> ${esc(secs)}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${esc(rate)}` : ""}`;
             }
             const pdfLink = `<button type="button" class="btn-secondary btn-small" data-action="printClHistoryEntry" data-args="${esc(JSON.stringify([entry.id]))}" title="Open print/PDF dialog">PDF</button>`;
-            const txtLink = `<a href="/api/cl-history/file/${entry.id}/cover_letter.txt" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
+            const txtLink = `<a href="${esc(`/api/cl-history/file/${entry.id}/cover_letter.txt`)}" download style="color:var(--muted); text-decoration:underline;">TXT</a>`;
 
             const modelInfo =
                 entry.model && entry.provider
@@ -1906,7 +1906,7 @@ function renderHistoryTable(data) {
                         : score >= 4
                           ? "score-mid"
                           : "score-low";
-                scoreHtml = `<span class="history-score ${cls}">${score}/10</span>`;
+                scoreHtml = `<span class="history-score ${cls}">${esc(score)}/10</span>`;
             }
             const hiredClass = entry.hired ? "hired-yes" : "hired-no";
             const hiredLabel = entry.hired ? "✓ YES" : "✗ NO";
@@ -1922,10 +1922,10 @@ function renderHistoryTable(data) {
                     timing.elapsed_seconds && timing.elapsed_seconds > 0
                         ? Math.round(tok / timing.elapsed_seconds) + " tok/s"
                         : "";
-                metricsHtml = `<span title="tokens">🔢</span> ${tok}${secs ? `<br/><span title="time">⏱</span> ${secs}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${rate}` : ""}`;
+                metricsHtml = `<span title="tokens">🔢</span> ${esc(tok)}${secs ? `<br/><span title="time">⏱</span> ${esc(secs)}` : ""}${rate ? `<br/><span title="rate">⚡</span> ${esc(rate)}` : ""}`;
             }
             const pdfLink = entry.pdf_filename
-                ? `<a href="/api/history/file/${entry.id}/${entry.pdf_filename}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
+                ? `<a href="${esc(`/api/history/file/${entry.id}/${entry.pdf_filename}`)}" target="_blank" style="color:var(--muted); text-decoration:underline;">PDF</a>`
                 : "—";
 
             const modelInfo =
@@ -2061,10 +2061,8 @@ async function toggleHired(entryId, currentVal, cellEl) {
         // Update cell in-place without a full reload
         cellEl.className = newVal ? "hired-yes" : "hired-no";
         cellEl.textContent = newVal ? "✓ YES" : "✗ NO";
-        cellEl.setAttribute(
-            "onclick",
-            `toggleHired('${entryId}', ${newVal}, this)`,
-        );
+        // Refresh the delegated args so the next click toggles from the new value
+        cellEl.dataset.args = JSON.stringify([entryId, newVal]);
     } catch (e) {
         toast(e.message, true);
     }

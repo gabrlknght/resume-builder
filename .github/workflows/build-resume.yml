@@ -26,7 +26,9 @@ jobs:
           python-version: '3.12'
 
       - name: Install Jinja2
-        run: pip install jinja2
+        # Pinned to the version in requirements.txt so CI renders with the
+        # same Jinja2 the local app uses.
+        run: pip install jinja2==3.1.6
 
       - name: Lint Wiki Health
         run: python scripts/wiki_lint.py

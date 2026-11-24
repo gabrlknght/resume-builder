@@ -390,6 +390,8 @@ async def save(request: Request):
 @app.get("/api/history/dashboard")
 async def history_dashboard(page: int = 1, limit: int = 25):
     """Return paginated history entries, newest first."""
+    page = max(1, page)
+    limit = min(100, max(1, limit))
     entries = scan_history_entries(HISTORY_DIR)
     total = len(entries)
     start = (page - 1) * limit
@@ -565,6 +567,8 @@ async def cl_history_save(request: Request):
 @app.get("/api/cl-history/dashboard")
 async def cl_history_dashboard(page: int = 1, limit: int = 25):
     """Return paginated cover letter history entries, newest first."""
+    page = max(1, page)
+    limit = min(100, max(1, limit))
     entries = scan_history_entries(CL_HISTORY_DIR)
     total = len(entries)
     start = (page - 1) * limit
