@@ -93,6 +93,75 @@ def _redact_api_keys(obj):
 
 
 # ---------------------------------------------------------------------------
+# AI request resolution — shared by the tailor + cover-letter endpoints
+# ---------------------------------------------------------------------------
+# Providers that run fully local and need no API key.
+NO_KEY_PROVIDERS = {"ollama", "llamacpp"}
+
+
+def _resolve_ai_request(payload: dict):
+    """Validate the shared AI request payload.
+
+    Returns a dict {provider, model, base_url, api_key, tone, jd}, or a
+    JSONResponse (400) describing the problem.
+
+    Env-var key fallback is only allowed for a provider's default endpoint.
+    When the caller supplies a custom base_url, the request must carry its
+    own explicit API key — otherwise the server would happily send its own
+    env-held key to an arbitrary URL the caller chose.
+    """
+    from pipeline import resolve_ollama_model
+
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"error": "Invalid payload"})
+
+    jd = payload.get("jd", "")
+    config = payload.get("config", {})
+    if not isinstance(jd, str) or not jd.strip():
+        return JSONResponse(status_code=400, content={"error": "Job description is required."})
+    if not isinstance(config, dict):
+        return JSONResponse(status_code=400, content={"error": "Invalid config"})
+
+    provider = config.get("provider", "openai")
+    model = config.get("model", "gpt-4o-mini")
+    base_url = config.get("base_url", "").strip()
+    api_key = config.get("api_key", "").strip()
+    tone = payload.get("tone", config.get("tone", "professional"))
+
+    if provider == "ollama":
+        if base_url:
+            base_url = base_url.rstrip("/")
+            if not base_url.endswith("/v1"):
+                base_url += "/v1"
+        model = resolve_ollama_model(model)
+    elif provider == "llamacpp":
+        pass
+    else:
+        if not base_url:
+            # Default endpoint: fall back to env-var keys.
+            env_key = (
+                "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
+            )
+            api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
+                },
+            )
+
+    return {
+        "provider": provider,
+        "model": model,
+        "base_url": base_url or "",
+        "api_key": api_key,
+        "tone": tone,
+        "jd": jd,
+    }
+
+
+# ---------------------------------------------------------------------------
 # App Setup
 # ---------------------------------------------------------------------------
 app = FastAPI(title="Resume Customizer")
@@ -398,58 +467,16 @@ async def history_file(file_path: str):
 @app.post("/api/tailor")
 async def tailor(request: Request):
     """Multi-stage tailoring pipeline — streams SSE events."""
-    import os
-
-    from pipeline import get_instructor_client, resolve_ollama_model, run_pipeline
+    from pipeline import get_instructor_client, run_pipeline
 
     payload = await request.json()
-    jd = payload.get("jd", "")
-    config = payload.get("config", {})
+    resolved = _resolve_ai_request(payload)
+    if isinstance(resolved, JSONResponse):
+        return resolved
     data = payload.get("data", {})
 
-    if not jd.strip():
-        return JSONResponse(status_code=400, content={"error": "Job description is required."})
-
-    provider = config.get("provider", "openai")
-    model = config.get("model", "gpt-4o-mini")
-    base_url = config.get("base_url", "").strip()
-    api_key = config.get("api_key", "").strip()
-    tone = payload.get("tone", config.get("tone", "professional"))
-
-    # Resolve API key from environment if not provided
-    if not api_key:
-        env_key = (
-            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
-        )
-        api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
-
-    # Ollama-specific setup
-    if provider == "ollama":
-        if base_url:
-            base_url = base_url.rstrip("/")
-            if not base_url.endswith("/v1"):
-                base_url += "/v1"
-        model = resolve_ollama_model(model)
-    # llama.cpp: no /v1 normalization (frontend handles it), no API key required
-    elif provider == "llamacpp":
-        pass
-    elif not api_key:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
-            },
-        )
-
     try:
-        client = get_instructor_client(
-            {
-                "provider": provider,
-                "model": model,
-                "base_url": base_url or "",
-                "api_key": api_key,
-            }
-        )
+        client = get_instructor_client(resolved)
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"error": f"Failed to create API client: {str(e)}"}
@@ -459,7 +486,7 @@ async def tailor(request: Request):
         return JSONResponse(status_code=429, content=_AI_BUSY_RESPONSE)
 
     return StreamingResponse(
-        _hold_ai_lock(run_pipeline(client, model, jd, data, tone, provider)),
+        _hold_ai_lock(run_pipeline(client, resolved["model"], resolved["jd"], data, resolved["tone"], resolved["provider"])),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -471,64 +498,19 @@ async def tailor(request: Request):
 @app.post("/api/cover-letter")
 async def cover_letter_endpoint(request: Request):
     """Cover letter generation pipeline — streams SSE events."""
-    import os
-
-    from pipeline import (
-        get_instructor_client,
-        resolve_ollama_model,
-        run_cover_letter_pipeline,
-    )
+    from pipeline import get_instructor_client, run_cover_letter_pipeline
 
     payload = await request.json()
-    jd = payload.get("jd", "")
+    resolved = _resolve_ai_request(payload)
+    if isinstance(resolved, JSONResponse):
+        return resolved
+    jd = resolved["jd"]
     prior_letter = payload.get("prior_letter", "")
     extra_facts = payload.get("extra_facts", "")
-    config = payload.get("config", {})
     data = payload.get("data", {})
 
-    if not jd.strip():
-        return JSONResponse(status_code=400, content={"error": "Job description is required."})
-
-    provider = config.get("provider", "openai")
-    model = config.get("model", "gpt-4o-mini")
-    base_url = config.get("base_url", "").strip()
-    api_key = config.get("api_key", "").strip()
-    tone = payload.get("tone", config.get("tone", "professional"))
-
-    # Resolve API key from environment if not provided
-    if not api_key:
-        env_key = (
-            "OPENROUTER_API_KEY" if provider == "openrouter_meta" else f"{provider.upper()}_API_KEY"
-        )
-        api_key = os.getenv(env_key) or os.getenv("OPENAI_API_KEY")
-
-    # Ollama-specific setup
-    if provider == "ollama":
-        if base_url:
-            base_url = base_url.rstrip("/")
-            if not base_url.endswith("/v1"):
-                base_url += "/v1"
-        model = resolve_ollama_model(model)
-    # llama.cpp: no /v1 normalization (frontend handles it), no API key required
-    elif provider == "llamacpp":
-        pass
-    elif not api_key:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "API Key is required. Please provide it in the UI or set the appropriate environment variable."
-            },
-        )
-
     try:
-        client = get_instructor_client(
-            {
-                "provider": provider,
-                "model": model,
-                "base_url": base_url or "",
-                "api_key": api_key,
-            }
-        )
+        client = get_instructor_client(resolved)
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -542,12 +524,12 @@ async def cover_letter_endpoint(request: Request):
         _hold_ai_lock(
             run_cover_letter_pipeline(
                 client,
-                model,
+                resolved["model"],
                 jd,
                 data,
                 prior_letter if prior_letter and prior_letter.strip() else None,
-                tone,
-                provider,
+                resolved["tone"],
+                resolved["provider"],
                 extra_facts if extra_facts and extra_facts.strip() else None,
             )
         ),
